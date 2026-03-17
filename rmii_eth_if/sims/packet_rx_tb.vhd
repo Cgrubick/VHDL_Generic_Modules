@@ -335,6 +335,7 @@ begin
         -- ================================================
         -- Done
         -- ================================================
+        
         report "All tests complete" severity note;
         wait;
     end process stim;
