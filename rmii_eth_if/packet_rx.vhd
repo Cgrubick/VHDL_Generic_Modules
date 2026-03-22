@@ -28,10 +28,10 @@ architecture rtl of packet_rx is
     constant HEADER_BYTES    : integer := 42;
     constant ETH_HEADER_BITS : integer := HEADER_BYTES * 8;  -- 336 bits
 
-    type rxd_z_arr is array (0 to 2) of std_logic_vector(1 downto 0);
-    signal rxd_z : rxd_z_arr;
-
-    signal rxdv_z             : std_logic_vector(2 downto 0);
+    signal rxd_q              : std_logic_vector(1 downto 0);
+    signal rxd_qq             : std_logic_vector(1 downto 0);
+    signal rxd_qqq            : std_logic_vector(1 downto 0);
+    signal rxdv_q             : std_logic_vector(2 downto 0);
 
     signal first_packet_count : unsigned(7 downto 0);
     signal packet_done        : std_logic;
@@ -62,23 +62,36 @@ architecture rtl of packet_rx is
     signal udp_port_dest      : std_logic_vector(15 downto 0);
     signal udp_length         : std_logic_vector(15 downto 0);
     signal udp_checksum       : std_logic_vector(15 downto 0);
+    signal ip_header_checksum : std_logic_vector(15 downto 0);
+    signal protocol           : std_logic_vector(7  downto 0);
+    signal ttl                : std_logic_vector(7  downto 0);
+    signal flags_frag         : std_logic_vector(15 downto 0);
+    signal identification     : std_logic_vector(15 downto 0);
+    signal total_length       : std_logic_vector(15 downto 0);
+    signal dscp_ecn           : std_logic_vector(7  downto 0);
+    signal version_ihl        : std_logic_vector(7  downto 0);
 
 begin
 
+    -- --------------------------------------------------------
+    -- RX data & RX data valid triple register
+    -- --------------------------------------------------------
     process (clk, reset_n)
     begin
         if reset_n = '0' then
-            rxd_z              <= (others => (others => '0'));
-            rxdv_z             <= (others => '0');
+            rxd_q              <= (others => '0');
+            rxd_qq             <= (others => '0');
+            rxd_qqq            <= (others => '0');
+            rxdv_q             <= (others => '0');
             first_packet_count <= (others => '0');
         elsif rising_edge(clk) then
-            rxd_z(0) <= RXD;
-            rxd_z(1) <= rxd_z(0);
-            rxd_z(2) <= rxd_z(1);
+            rxd_q   <= RXD;
+            rxd_qq  <= rxd_q;
+            rxd_qqq <= rxd_qq;
 
-            rxdv_z(0) <= RXDV;
-            rxdv_z(1) <= rxdv_z(0);
-            rxdv_z(2) <= rxdv_z(1);
+            rxdv_q(0) <= RXDV;
+            rxdv_q(1) <= rxdv_q(0);
+            rxdv_q(2) <= rxdv_q(1);
 
             if packet_done = '1' and first_packet_count < FIRST_PACKET_IGNORE then
                 first_packet_count <= first_packet_count + 1;
@@ -116,7 +129,7 @@ begin
                     end if;
 
                 when PREAMBLE_SFD_S =>
-                    if preamble_sfd_buff_next = x"D555555555555555" then
+                    if preamble_sfd_buff_next = x"d555555555555555" then
                         current_state <= HEADER_S;
                     end if;
                     if packet_done = '1' then
@@ -159,14 +172,14 @@ begin
             end if;
             
             if current_state = HEADER_S then
-                header_buffer <= rxd_z(0) & header_buffer(ETH_HEADER_BITS-1 downto 2);
+                header_buffer <= rxd_qqq & header_buffer(ETH_HEADER_BITS-1 downto 2);
             end if;
 
             if current_state = DATA_S then
-                data_buffer <= rxd_z(0) & data_buffer(7 downto 2);
+                data_buffer <= rxd_qqq & data_buffer(7 downto 2);
 
                 if state_counter(1 downto 0) = "11" then
-                    if ((CHECK_DEST /= '1') OR (packet_dest = unsigned(FPGA_MAC))) then
+                    if ((packet_dest = unsigned(FPGA_MAC))) then
                         data_valid <= '1';
                     end if;
                 end if;
@@ -178,21 +191,29 @@ begin
         end if;
     end process;
 
-    packet_start <= '1' when (rxdv_z(2) = '0' and rxdv_z(1) = '1') else '0';
-    packet_done  <= '1' when (rxdv_z(2) = '1' and rxdv_z(1) = '0') else '0';
+    packet_start <= '1' when (rxdv_q(2) = '0' and rxdv_q(1) = '1') else '0';
+    packet_done  <= '1' when (rxdv_q(2) = '1' and rxdv_q(1) = '0') else '0';
 
-    preamble_sfd_buff_next(63 downto 62) <= rxd_z(0) when reset_n = '1' else "00";
+    preamble_sfd_buff_next(63 downto 62) <= rxd_qqq when reset_n = '1' else "00";
     preamble_sfd_buff_next(61 downto 0)  <= preamble_sfd_buff(63 downto 2) when reset_n = '1' else (others => '0');
+    udp_checksum        <= header_buffer(335 downto 320);
+    udp_length          <= header_buffer(319 downto 304);
+    udp_port_dest       <= header_buffer(303 downto 288);
+    udp_port_src        <= header_buffer(287 downto 272);
+    ip_destination      <= header_buffer(271 downto 240);
+    ip_source           <= header_buffer(239 downto 208);
+    ip_header_checksum  <= header_buffer(207 downto 192); 
+    protocol            <= header_buffer(191 downto 184); --  8 bits 
+    ttl                 <= header_buffer(183 downto 176); --  8 bits 
+    flags_frag          <= header_buffer(175 downto 160); -- 16 bits 
+    identification      <= header_buffer(159 downto 144); -- 16 bits 
+    total_length        <= header_buffer(143 downto 128); -- 16 bits 
+    dscp_ecn            <= header_buffer(127 downto 120); --  8 bits 
+    version_ihl         <= header_buffer(119 downto 112); --  8 bits 
+    eth_type_length     <= header_buffer(111 downto  96);
+    mac_source          <= header_buffer( 95 downto  48);
+    mac_destination     <= header_buffer( 47 downto   0);
 
-    mac_destination <= header_buffer(ETH_HEADER_BITS-1   downto ETH_HEADER_BITS-48);
-    mac_source      <= header_buffer(ETH_HEADER_BITS-49  downto ETH_HEADER_BITS-96);
-    eth_type_length <= header_buffer(ETH_HEADER_BITS-97  downto ETH_HEADER_BITS-112);
-    ip_source       <= header_buffer(ETH_HEADER_BITS-113 downto ETH_HEADER_BITS-144);
-    ip_destination  <= header_buffer(ETH_HEADER_BITS-145 downto ETH_HEADER_BITS-176);
-    udp_port_src    <= header_buffer(ETH_HEADER_BITS-177 downto ETH_HEADER_BITS-192);
-    udp_port_dest   <= header_buffer(ETH_HEADER_BITS-193 downto ETH_HEADER_BITS-208);
-    udp_length      <= header_buffer(ETH_HEADER_BITS-209 downto ETH_HEADER_BITS-224);
-    udp_checksum    <= header_buffer(ETH_HEADER_BITS-225 downto ETH_HEADER_BITS-240);
 
     packet_dest <= unsigned(mac_destination);
 

@@ -10,7 +10,7 @@ package ip_defs_pkg is
     constant FPGA_PORT      : std_logic_vector(15 downto 0) := x"4567";
     constant HOST_PORT      : std_logic_vector(15 downto 0) := x"4567";
     -- MAC addresses (48-bit)
-    constant FPGA_MAC       : std_logic_vector(47 downto 0) := x"E86A64E7E830";
-    constant HOST_MAC       : std_logic_vector(47 downto 0) := x"E86A64E7E830";
+    constant FPGA_MAC       : std_logic_vector(47 downto 0) := x"C3C3C3C3C3C3";
+    constant HOST_MAC       : std_logic_vector(47 downto 0) := x"A5A5A5A5A5A5";
     constant CHECK_DEST     : std_logic := '1';
 end package ip_defs_pkg;
