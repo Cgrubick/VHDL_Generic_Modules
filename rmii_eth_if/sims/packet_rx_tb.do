@@ -33,6 +33,8 @@ add wave -radix bin              /packet_rx_tb/M_AXI_S_TLAST
 add wave -divider "DUT Internals"
 add wave -radix ascii            /packet_rx_tb/test_name
 add wave -radix unsigned         /packet_rx_tb/DUT/current_state
+add wave -radix bin         /packet_rx_tb/DUT/state_counter(0)
+add wave -radix bin         /packet_rx_tb/DUT/state_counter(1)
 add wave -radix unsigned         /packet_rx_tb/DUT/state_counter
 add wave -radix hex              /packet_rx_tb/DUT/preamble_sfd_buff
 add wave -radix hex              /packet_rx_tb/DUT/preamble_sfd_buff_next
@@ -56,5 +58,5 @@ add wave -radix hex  /packet_rx_tb/DUT/mac_destination
 add wave -radix hex  /packet_rx_tb/DUT/data_buffer
 
 # ---- Run ---------------------------------------------------
-run 25 us
+run 150 us
 wave zoom full

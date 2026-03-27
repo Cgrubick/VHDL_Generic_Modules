@@ -3,21 +3,11 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use work.ip_defs_pkg.all;
 
--- ============================================================
--- Testbench for packet_rx
--- Tests:
---   1) Valid UDP/Ethernet frame -> AXI-Stream payload output
---   2) Frame addressed to wrong MAC -> no output (CHECK_DESTINATION=true)
---   3) Packet done mid-stream -> TLAST asserted
--- ============================================================
-
 entity packet_rx_tb is
 end entity packet_rx_tb;
 
 architecture sim of packet_rx_tb is
 
-
-    -- Clock period for 50 MHz RMII ref clock
     constant CLK_PERIOD : time := 20 ns;
 
     signal clk            : std_logic := '0';
@@ -30,18 +20,14 @@ architecture sim of packet_rx_tb is
 
     signal test_name : string(1 to 40) := (others => ' ');
 
-    -- Byte array type for building frames
+    -- collect process writes these; stim reads them 2 clocks after
+    -- lowering 'collecting' (enough time for signal assignment to settle)
+    signal collecting    : std_logic := '0';
+    signal rx_byte_count : integer   := 0;
+    signal saw_tlast     : boolean   := false;
+
     type byte_array is array (natural range <>) of std_logic_vector(7 downto 0);
 
-    -- Build a minimal valid Ethernet+IPv4+UDP frame header (42 bytes)
-    -- followed by a payload.
-    -- Layout:
-    --   [0..5]   DST MAC
-    --   [6..11]  SRC MAC
-    --   [12..13] EtherType (0x0800 = IPv4)
-    --   [14..33] IPv4 header (20 bytes, minimal, no options)
-    --   [34..41] UDP header (8 bytes)
-    --   [42+]    payload
     function build_frame (
         dst_mac  : std_logic_vector(47 downto 0);
         src_mac  : std_logic_vector(47 downto 0);
@@ -51,83 +37,40 @@ architecture sim of packet_rx_tb is
         dst_port : std_logic_vector(15 downto 0);
         payload  : byte_array
     ) return byte_array is
-        variable udp_len  : std_logic_vector(15 downto 0);
-        variable ip_len   : std_logic_vector(15 downto 0);
-        variable total    : integer := 42 + payload'length;
-        variable frame    : byte_array(0 to total - 1);
+        variable udp_len : std_logic_vector(15 downto 0);
+        variable ip_len  : std_logic_vector(15 downto 0);
+        variable total   : integer := 42 + payload'length;
+        variable frame   : byte_array(0 to total - 1);
     begin
         udp_len := std_logic_vector(to_unsigned(8 + payload'length, 16));
         ip_len  := std_logic_vector(to_unsigned(20 + 8 + payload'length, 16));
-
-        -- DST MAC
-        frame(0) := dst_mac(47 downto 40);
-        frame(1) := dst_mac(39 downto 32);
-        frame(2) := dst_mac(31 downto 24);
-        frame(3) := dst_mac(23 downto 16);
-        frame(4) := dst_mac(15 downto  8);
-        frame(5) := dst_mac( 7 downto  0);
-        -- SRC MAC
-        frame(6)  := src_mac(47 downto 40);
-        frame(7)  := src_mac(39 downto 32);
-        frame(8)  := src_mac(31 downto 24);
-        frame(9)  := src_mac(23 downto 16);
-        frame(10) := src_mac(15 downto  8);
-        frame(11) := src_mac( 7 downto  0);
-        -- EtherType IPv4
-        frame(12) := x"08";
-        frame(13) := x"00";
-        -- IPv4: ver=4 ihl=5 dscp=0 ecn=0
-        frame(14) := x"45";
-        frame(15) := x"00";
-        -- IPv4 total length
-        frame(16) := ip_len(15 downto 8);
-        frame(17) := ip_len( 7 downto 0);
-        -- identification
-        frame(18) := x"00";
-        frame(19) := x"01";
-        -- flags + fragment offset
-        frame(20) := x"00";
-        frame(21) := x"00";
-        -- TTL
-        frame(22) := x"40";
-        -- protocol UDP = 17
-        frame(23) := x"11";
-        -- header checksum (zeroed for sim)
-        frame(24) := x"00";
-        frame(25) := x"00";
-        -- SRC IP
-        frame(26) := src_ip(31 downto 24);
-        frame(27) := src_ip(23 downto 16);
-        frame(28) := src_ip(15 downto  8);
-        frame(29) := src_ip( 7 downto  0);
-        -- DST IP
-        frame(30) := dst_ip(31 downto 24);
-        frame(31) := dst_ip(23 downto 16);
-        frame(32) := dst_ip(15 downto  8);
-        frame(33) := dst_ip( 7 downto  0);
-        -- UDP SRC port
-        frame(34) := src_port(15 downto 8);
-        frame(35) := src_port( 7 downto 0);
-        -- UDP DST port
-        frame(36) := dst_port(15 downto 8);
-        frame(37) := dst_port( 7 downto 0);
-        -- UDP length
-        frame(38) := udp_len(15 downto 8);
-        frame(39) := udp_len( 7 downto 0);
-        -- UDP checksum (zeroed for sim)
-        frame(40) := x"00";
-        frame(41) := x"00";
-        -- Payload
+        frame(0) := dst_mac(47 downto 40); frame(1) := dst_mac(39 downto 32);
+        frame(2) := dst_mac(31 downto 24); frame(3) := dst_mac(23 downto 16);
+        frame(4) := dst_mac(15 downto  8); frame(5) := dst_mac( 7 downto  0);
+        frame(6)  := src_mac(47 downto 40); frame(7)  := src_mac(39 downto 32);
+        frame(8)  := src_mac(31 downto 24); frame(9)  := src_mac(23 downto 16);
+        frame(10) := src_mac(15 downto  8); frame(11) := src_mac( 7 downto  0);
+        frame(12) := x"08"; frame(13) := x"00";
+        frame(14) := x"45"; frame(15) := x"00";
+        frame(16) := ip_len(15 downto 8); frame(17) := ip_len(7 downto 0);
+        frame(18) := x"00"; frame(19) := x"01";
+        frame(20) := x"00"; frame(21) := x"00";
+        frame(22) := x"40"; frame(23) := x"11";
+        frame(24) := x"00"; frame(25) := x"00";
+        frame(26) := src_ip(31 downto 24); frame(27) := src_ip(23 downto 16);
+        frame(28) := src_ip(15 downto  8); frame(29) := src_ip( 7 downto  0);
+        frame(30) := dst_ip(31 downto 24); frame(31) := dst_ip(23 downto 16);
+        frame(32) := dst_ip(15 downto  8); frame(33) := dst_ip( 7 downto  0);
+        frame(34) := src_port(15 downto 8); frame(35) := src_port(7 downto 0);
+        frame(36) := dst_port(15 downto 8); frame(37) := dst_port(7 downto 0);
+        frame(38) := udp_len(15 downto 8);  frame(39) := udp_len(7 downto 0);
+        frame(40) := x"00"; frame(41) := x"00";
         for i in payload'range loop
             frame(42 + i - payload'low) := payload(i);
         end loop;
-
         return frame;
     end function;
 
-    -- --------------------------------------------------------
-    -- Task: drive one byte onto RMII (4 dibits, LSB first)
-    -- --------------------------------------------------------
     procedure drive_byte (
         signal clk  : in  std_logic;
         signal rxd  : out std_logic_vector(1 downto 0);
@@ -136,15 +79,12 @@ architecture sim of packet_rx_tb is
     ) is
     begin
         rxdv <= '1';
-        rxd  <= b(1 downto 0); wait until rising_edge(clk);
-        rxd  <= b(3 downto 2); wait until rising_edge(clk);
-        rxd  <= b(5 downto 4); wait until rising_edge(clk);
-        rxd  <= b(7 downto 6); wait until rising_edge(clk);
+        rxd <= b(1 downto 0); wait until rising_edge(clk);
+        rxd <= b(3 downto 2); wait until rising_edge(clk);
+        rxd <= b(5 downto 4); wait until rising_edge(clk);
+        rxd <= b(7 downto 6); wait until rising_edge(clk);
     end procedure;
 
-    -- --------------------------------------------------------
-    -- Task: drive preamble (7 x 0x55) + SFD (0xD5)
-    -- --------------------------------------------------------
     procedure drive_preamble (
         signal clk  : in  std_logic;
         signal rxd  : out std_logic_vector(1 downto 0);
@@ -157,24 +97,19 @@ architecture sim of packet_rx_tb is
         drive_byte(clk, rxd, rxdv, x"D5");
     end procedure;
 
-    -- --------------------------------------------------------
-    -- Task: drive a full frame with preamble
-    -- --------------------------------------------------------
     procedure drive_frame (
-        signal   clk   : in    std_logic;
-        signal   rxd   : out   std_logic_vector(1 downto 0);
-        signal   rxdv  : out   std_logic;
-        constant frame : in    byte_array
+        signal   clk   : in  std_logic;
+        signal   rxd   : out std_logic_vector(1 downto 0);
+        signal   rxdv  : out std_logic;
+        constant frame : in  byte_array
     ) is
     begin
-        -- Assert RXDV one cycle before preamble
         rxdv <= '1';
         wait until rising_edge(clk);
         drive_preamble(clk, rxd, rxdv);
         for i in frame'range loop
             drive_byte(clk, rxd, rxdv, frame(i));
         end loop;
-        -- De-assert RXDV = end of packet
         rxdv <= '0';
         rxd  <= "00";
         wait until rising_edge(clk);
@@ -182,9 +117,6 @@ architecture sim of packet_rx_tb is
 
 begin
 
-    -- --------------------------------------------------------
-    -- DUT instantiation
-    -- --------------------------------------------------------
     DUT : entity work.packet_rx
         port map (
             clk            => clk,
@@ -198,146 +130,171 @@ begin
 
     clk <= not clk after CLK_PERIOD / 2;
 
+    -- ============================================================
+    -- Stimulus: raise collecting, drive frame(s), drain pipeline,
+    -- lower collecting, wait 4 clocks for collect to write results.
+    -- ============================================================
     stim : process
-        -- Payload: 4 known bytes
-        constant PAYLOAD : byte_array(0 to 3) := (x"DE", x"AD", x"BE", x"EF");
+        constant PAYLOAD     : byte_array(0 to 3)    := (x"DE", x"AD", x"BE", x"EF");
+        -- Max UDP payload = 1500 (IP MTU) - 20 (IP hdr) - 8 (UDP hdr) = 1472 bytes
+        constant MAX_PAYLOAD : byte_array(0 to 1499) := (others => x"A5");
 
-        -- Frame addressed to FPGA (should pass)
         constant GOOD_FRAME : byte_array := build_frame(
-            dst_mac  => FPGA_MAC,
-            src_mac  => HOST_MAC,
-            src_ip   => HOST_IP,
-            dst_ip   => FPGA_IP,
-            src_port => HOST_PORT,
-            dst_port => FPGA_PORT,
+            dst_mac  => FPGA_MAC,        src_mac  => HOST_MAC,
+            src_ip   => HOST_IP,         dst_ip   => FPGA_IP,
+            src_port => HOST_PORT,       dst_port => FPGA_PORT,
             payload  => PAYLOAD
         );
-
-        -- Frame addressed to wrong MAC (should be dropped)
         constant BAD_FRAME : byte_array := build_frame(
-            dst_mac  => x"FFFFFFFFFFFF",  -- broadcast, not FPGA_MAC
-            src_mac  => HOST_MAC,
-            src_ip   => HOST_IP,
-            dst_ip   => FPGA_IP,
-            src_port => HOST_PORT,
-            dst_port => FPGA_PORT,
+            dst_mac  => x"FFFFFFFFFFFF", src_mac  => HOST_MAC,
+            src_ip   => HOST_IP,         dst_ip   => FPGA_IP,
+            src_port => HOST_PORT,       dst_port => FPGA_PORT,
             payload  => PAYLOAD
         );
+        constant MAX_FRAME : byte_array := build_frame(
+            dst_mac  => FPGA_MAC,        src_mac  => HOST_MAC,
+            src_ip   => HOST_IP,         dst_ip   => FPGA_IP,
+            src_port => HOST_PORT,       dst_port => FPGA_PORT,
+            payload  => MAX_PAYLOAD
+        );
 
-        variable rx_byte_count : integer := 0;
-        variable saw_tlast     : boolean := false;
+        -- Clocks after RXDV falls to flush DUT pipeline (3 RXDV + 2 data stages)
+        constant DRAIN_CLOCKS : integer := 20;
+
+        variable total_pass : integer := 0;
+        variable total_fail : integer := 0;
+
+        -- Record a boolean condition as pass or fail
+        procedure check (
+            condition : boolean;
+            msg       : string
+        ) is
+        begin
+            if condition then
+                total_pass := total_pass + 1;
+            else
+                total_fail := total_fail + 1;
+                report "FAIL: " & msg severity error;
+            end if;
+        end procedure;
+
     begin
-        -- ---- Reset ----
         test_name <= "RESET                                   ";
         reset_n <= '0';
         wait for 5 * CLK_PERIOD;
         reset_n <= '1';
         wait for 3 * CLK_PERIOD;
 
-        -- ================================================
-        -- TEST 1: Valid frame, correct destination
-        -- Expected: 4 payload bytes on AXI-S, TLAST on last
-        -- ================================================
+        -- ---- TEST 1 ----
         test_name <= "TEST1: valid frame, correct MAC         ";
         report "Starting TEST 1: valid frame to FPGA MAC";
-
+        collecting <= '1';
+        wait until rising_edge(clk);
         drive_frame(clk, RXD, RXDV, GOOD_FRAME);
+        for i in 1 to DRAIN_CLOCKS loop wait until rising_edge(clk); end loop;
+        collecting <= '0';
+        -- 4 clocks: collect exits its loop, writes signals, done
+        wait for 4 * CLK_PERIOD;
 
-        -- Wait and collect output
-        rx_byte_count := 0;
-        saw_tlast     := false;
-        for i in 0 to 50 loop
-            wait until rising_edge(clk);
-            if M_AXI_S_TVALID = '1' then
-                report "RX byte " & integer'image(rx_byte_count) &
-                       " = 0x" & to_hstring(M_AXI_S_TDATA);
-                -- Check payload values
-                case rx_byte_count is
-                    when 0 => assert M_AXI_S_TDATA = x"DE"
-                        report "FAIL: byte 0 expected 0xDE" severity error;
-                    when 1 => assert M_AXI_S_TDATA = x"AD"
-                        report "FAIL: byte 1 expected 0xAD" severity error;
-                    when 2 => assert M_AXI_S_TDATA = x"BE"
-                        report "FAIL: byte 2 expected 0xBE" severity error;
-                    when 3 => assert M_AXI_S_TDATA = x"EF"
-                        report "FAIL: byte 3 expected 0xEF" severity error;
-                    when others => null;
-                end case;
-                rx_byte_count := rx_byte_count + 1;
-                if M_AXI_S_TLAST = '1' then
-                    saw_tlast := true;
-                end if;
-            end if;
-        end loop;
-
-        assert rx_byte_count = PAYLOAD'length
-            report "FAIL TEST1: expected " & integer'image(PAYLOAD'length) &
-                   " bytes, got " & integer'image(rx_byte_count)
-            severity error;
-        assert saw_tlast
-            report "FAIL TEST1: TLAST never asserted"
-            severity error;
-
+        check(rx_byte_count = PAYLOAD'length,
+              "TEST1: expected " & integer'image(PAYLOAD'length) &
+              " bytes, got " & integer'image(rx_byte_count));
+        check(saw_tlast, "TEST1: TLAST never asserted");
         report "TEST 1 complete: " & integer'image(rx_byte_count) & " bytes received";
         wait for 10 * CLK_PERIOD;
 
-        -- ================================================
-        -- TEST 2: Frame to wrong MAC, CHECK_DESTINATION=true
-        -- Expected: no AXI-S output
-        -- ================================================
+        -- ---- TEST 2 ----
         test_name <= "TEST2: wrong MAC, expect no output      ";
         report "Starting TEST 2: frame to broadcast MAC (should be dropped)";
-
+        collecting <= '1';
+        wait until rising_edge(clk);
         drive_frame(clk, RXD, RXDV, BAD_FRAME);
+        for i in 1 to DRAIN_CLOCKS loop wait until rising_edge(clk); end loop;
+        collecting <= '0';
+        wait for 4 * CLK_PERIOD;
 
-        rx_byte_count := 0;
-        for i in 0 to 50 loop
-            wait until rising_edge(clk);
-            if M_AXI_S_TVALID = '1' then
-                rx_byte_count := rx_byte_count + 1;
-            end if;
-        end loop;
-
-        assert rx_byte_count = 0
-            report "FAIL TEST2: received " & integer'image(rx_byte_count) &
-                   " bytes but expected 0 (wrong MAC should be dropped)"
-            severity error;
-
+        check(rx_byte_count = 0,
+              "TEST2: received " & integer'image(rx_byte_count) &
+              " bytes but expected 0");
         report "TEST 2 complete: " & integer'image(rx_byte_count) & " bytes (expect 0)";
         wait for 10 * CLK_PERIOD;
 
-        -- ================================================
-        -- TEST 3: Back-to-back frames
-        -- ================================================
+        -- ---- TEST 3 ----
         test_name <= "TEST3: back-to-back frames              ";
         report "Starting TEST 3: two consecutive valid frames";
-
+        collecting <= '1';
+        wait until rising_edge(clk);
         drive_frame(clk, RXD, RXDV, GOOD_FRAME);
         wait for 4 * CLK_PERIOD;
         drive_frame(clk, RXD, RXDV, GOOD_FRAME);
+        for i in 1 to DRAIN_CLOCKS loop wait until rising_edge(clk); end loop;
+        collecting <= '0';
+        wait for 4 * CLK_PERIOD;
 
-        rx_byte_count := 0;
-        for i in 0 to 120 loop
-            wait until rising_edge(clk);
-            if M_AXI_S_TVALID = '1' then
-                rx_byte_count := rx_byte_count + 1;
-            end if;
-        end loop;
-
-        assert rx_byte_count = 2 * PAYLOAD'length
-            report "FAIL TEST3: expected " & integer'image(2 * PAYLOAD'length) &
-                   " bytes, got " & integer'image(rx_byte_count)
-            severity error;
-
+        check(rx_byte_count = 2 * PAYLOAD'length,
+              "TEST3: expected " & integer'image(2 * PAYLOAD'length) &
+              " bytes, got " & integer'image(rx_byte_count));
         report "TEST 3 complete: " & integer'image(rx_byte_count) & " bytes received";
         wait for 10 * CLK_PERIOD;
 
-        -- ================================================
-        -- Done
-        -- ================================================
-        
-        report "All tests complete" severity note;
+        -- ---- TEST 4: Max-size frame test ----
+        test_name <= "TEST4: max size frame (1500 B payload)  ";
+        report "Starting TEST 4: maximum payload frame (1500 bytes)";
+        collecting <= '1';
+        wait until rising_edge(clk);
+        drive_frame(clk, RXD, RXDV, MAX_FRAME);
+        for i in 1 to DRAIN_CLOCKS loop wait until rising_edge(clk); end loop;
+        collecting <= '0';
+        wait for 4 * CLK_PERIOD;
+
+        check(rx_byte_count = MAX_PAYLOAD'length,
+              "TEST4: expected " & integer'image(MAX_PAYLOAD'length) &
+              " bytes, got " & integer'image(rx_byte_count));
+        report "TEST 4 complete: " & integer'image(rx_byte_count) & " bytes received";
+        wait for 10 * CLK_PERIOD;
+
+        report "========================================"  severity note;
+        report "  TOTAL PASSES : " & integer'image(total_pass) severity note;
+        report "  TOTAL FAILS  : " & integer'image(total_fail) severity note;
+        report "========================================"  severity note;
         wait;
     end process stim;
- 
+
+    -- ============================================================
+    -- Collector: outer loop re-arms for each test automatically.
+    -- Uses variables internally; writes to shared signals only once
+    -- per test, after the window closes.
+    -- ============================================================
+    collect : process
+        variable cnt  : integer := 0;
+        variable last : boolean := false;
+    begin
+        loop  -- one iteration per test
+
+            wait until collecting = '1';
+            cnt  := 0;
+            last := false;
+
+            loop  -- sample every clock while window is open
+                wait until rising_edge(clk);
+                if M_AXI_S_TVALID = '1' then
+                    -- Only print individual bytes for small frames (< 16 bytes)
+                    -- to avoid flooding the transcript on large frames
+                    if cnt < 16 then
+                        report "RX byte " & integer'image(cnt) &
+                               " = 0x" & to_hstring(M_AXI_S_TDATA);
+                    end if;
+                    cnt := cnt + 1;
+                    if M_AXI_S_TLAST = '1' then last := true; end if;
+                end if;
+                exit when collecting = '0';
+            end loop;
+
+            -- Write final results for stim to read
+            rx_byte_count <= cnt;
+            saw_tlast     <= last;
+
+        end loop;
+    end process collect;
+
 end architecture sim;

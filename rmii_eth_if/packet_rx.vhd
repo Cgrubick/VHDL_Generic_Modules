@@ -21,7 +21,19 @@ entity packet_rx is
 end entity packet_rx;
 
 architecture rtl of packet_rx is
-
+    COMPONENT ila_0
+    PORT (
+        clk : IN STD_LOGIC;
+        probe0 : IN STD_LOGIC_VECTOR(0 DOWNTO 0); 
+        probe1 : IN STD_LOGIC_VECTOR(0 DOWNTO 0); 
+        probe2 : IN STD_LOGIC_VECTOR(0 DOWNTO 0); 
+        probe3 : IN STD_LOGIC_VECTOR(0 DOWNTO 0);
+        probe4 : IN STD_LOGIC_VECTOR(7 DOWNTO 0)
+    );
+    END COMPONENT;
+    
+    
+    
     constant MII_WIDTH       : integer := 2;
     constant FIRST_PACKET_IGNORE : integer := 0;
 
@@ -47,6 +59,7 @@ architecture rtl of packet_rx is
     type eth_states is (IDLE_S, PREAMBLE_SFD_S, HEADER_S, DATA_S);
     signal current_state      : eth_states;
     signal state_counter      : unsigned(31 downto 0);
+    signal data_counter       : unsigned(31 downto 0);
 
     signal data_valid         : std_logic;
     signal data_last          : std_logic;
@@ -109,7 +122,7 @@ begin
         elsif rising_edge(clk) then
             -- increment every clock; reset when we enter HEADER_S
             -- (state_counter used to count bytes received in HEADER_S)
-            if current_state = HEADER_S then
+            if current_state = HEADER_S or current_state = DATA_S then
                 state_counter <= state_counter + 1;
             else
                 state_counter <= (others => '0');
@@ -117,7 +130,20 @@ begin
         end if;
     end process;
 
-    state_logic : process (clk, reset_n)
+    process(clk, reset_n)
+    begin
+        if reset_n = '0' then
+            data_counter <= (others => '0');
+        elsif rising_edge(clk) then
+            if current_state = DATA_S then
+                data_counter <= data_counter + 1;
+            else
+                data_counter <= (others => '0');
+            end if;
+        end if;
+    end process;
+
+    process (clk, reset_n)
     begin
         if reset_n = '0' then
             current_state <= IDLE_S;
@@ -137,11 +163,12 @@ begin
                     end if;
 
                 when HEADER_S =>
+                    -- 42 bytes × 4 clocks/byte = 168 clocks; counter is in clocks
+                    if state_counter = (HEADER_BYTES * 4) - 1 then
+                        current_state <= DATA_S;
+                    end if;
                     if packet_done = '1' then
                         current_state <= IDLE_S;
-                    -- 42 bytes × 4 clocks/byte = 168 clocks; counter is in clocks
-                    elsif state_counter = (HEADER_BYTES * 4) - 1 then
-                        current_state <= DATA_S;
                     end if;
 
                 when DATA_S =>
@@ -153,7 +180,7 @@ begin
                     current_state <= IDLE_S;
             end case;
         end if;
-    end process state_logic;
+    end process;
 
     process (clk, reset_n)
     begin
@@ -176,10 +203,12 @@ begin
             end if;
 
             if current_state = DATA_S then
-                data_buffer <= rxd_qqq & data_buffer(7 downto 2);
+                if ((CHECK_DEST /= '1') OR (packet_dest = unsigned(FPGA_MAC))) then
+                    data_buffer <= rxd_qqq & data_buffer(7 downto 2);
+                end if;
 
-                if state_counter(1 downto 0) = "11" then
-                    if ((packet_dest = unsigned(FPGA_MAC))) then
+                if data_counter(1 downto 0) = "11" then
+                    if ((CHECK_DEST /= '1') OR (packet_dest = unsigned(FPGA_MAC))) then
                         data_valid <= '1';
                     end if;
                 end if;
@@ -222,4 +251,6 @@ begin
     M_AXI_S_TDATA  <= data_buffer;
     M_AXI_S_TLAST  <= data_last;
 
+
+   
 end rtl;
