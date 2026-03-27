@@ -21,18 +21,6 @@ entity packet_rx is
 end entity packet_rx;
 
 architecture rtl of packet_rx is
-    COMPONENT ila_0
-    PORT (
-        clk : IN STD_LOGIC;
-        probe0 : IN STD_LOGIC_VECTOR(0 DOWNTO 0); 
-        probe1 : IN STD_LOGIC_VECTOR(0 DOWNTO 0); 
-        probe2 : IN STD_LOGIC_VECTOR(0 DOWNTO 0); 
-        probe3 : IN STD_LOGIC_VECTOR(0 DOWNTO 0);
-        probe4 : IN STD_LOGIC_VECTOR(7 DOWNTO 0)
-    );
-    END COMPONENT;
-    
-    
     
     constant MII_WIDTH       : integer := 2;
     constant FIRST_PACKET_IGNORE : integer := 0;
