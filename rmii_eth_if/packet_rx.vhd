@@ -74,9 +74,9 @@ architecture rtl of packet_rx is
 
 begin
 
-    -- --------------------------------------------------------
+    ----------------------------------------------------------
     -- RX data & RX data valid triple register
-    -- --------------------------------------------------------
+    ----------------------------------------------------------
     process (clk, reset_n)
     begin
         if reset_n = '0' then
@@ -100,9 +100,9 @@ begin
         end if;
     end process;
 
-    -- --------------------------------------------------------
+    ----------------------------------------------------------
     -- State counter: resets on state change
-    -- --------------------------------------------------------
+    ----------------------------------------------------------
     process (clk, reset_n)
     begin
         if reset_n = '0' then
@@ -118,6 +118,9 @@ begin
         end if;
     end process;
 
+    ----------------------------------------------------------
+    -- Data byte counter: increments in DATA_S, clears otherwise
+    ----------------------------------------------------------
     process(clk, reset_n)
     begin
         if reset_n = '0' then
@@ -131,6 +134,9 @@ begin
         end if;
     end process;
 
+    ----------------------------------------------------------
+    -- FSM state register: controls RX pipeline stages
+    ----------------------------------------------------------
     process (clk, reset_n)
     begin
         if reset_n = '0' then
@@ -170,6 +176,9 @@ begin
         end if;
     end process;
 
+    ----------------------------------------------------------
+    -- Data capture: preamble/SFD, header, and payload buffering
+    ----------------------------------------------------------
     process (clk, reset_n)
     begin
         if reset_n = '0' then
