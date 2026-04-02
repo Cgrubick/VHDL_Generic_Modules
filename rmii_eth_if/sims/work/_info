@@ -9,11 +9,52 @@ z2
 !i10f 100
 cModel Technology
 Z0 dE:/Projects/FPGAs/VHDL_Modules/rmii_eth_if/sims
-Pip_defs_pkg
-Z1 DPx4 ieee 11 numeric_std 0 22 aU^R8eGcicLcUFIaBQSL>3
+Ecrc_32
+Z1 w1774576000
 Z2 DPx3 std 6 textio 0 22 zE1`LPoLg^DX3Oz^4Fj1K3
 Z3 DPx4 ieee 14 std_logic_1164 0 22 cVAk:aDinOX8^VGI1ekP<3
-!i122 182
+!i122 190
+R0
+Z4 8../crc_gen.vhd
+Z5 F../crc_gen.vhd
+l0
+L14 1
+VEE8^><U=>UN_X;N[Zi<_52
+!s100 NKzI?8h8bWe72lObfD`972
+Z6 OW;C;2024.3;79
+33
+Z7 !s110 1775090652
+!i10b 1
+Z8 !s108 1775090652.000000
+Z9 !s90 -reportprogress|300|-2008|../crc_gen.vhd|
+Z10 !s107 ../crc_gen.vhd|
+!i113 1
+Z11 o-2008 -O0
+Z12 tExplicit 1 CvgOpt 0
+Abehavioral
+R2
+R3
+DEx4 work 6 crc_32 0 22 EE8^><U=>UN_X;N[Zi<_52
+!i122 190
+l25
+L23 39
+VI9:o=Kg2b[gUch17XCR:c2
+!s100 bL7^b;ILIW64iC5oOoRl83
+R6
+33
+R7
+!i10b 1
+R8
+R9
+R10
+!i113 1
+R11
+R12
+Pip_defs_pkg
+Z13 DPx4 ieee 11 numeric_std 0 22 aU^R8eGcicLcUFIaBQSL>3
+R2
+R3
+!i122 189
 w1774214000
 R0
 8../ip_defs_pkg.vhd
@@ -22,134 +63,225 @@ l0
 L5 12
 VOSA:6el0@AVUE20NYAAQn3
 !s100 <XLAZDnOjQG1C>D:YRM?22
-Z4 OW;C;2024.3;79
+R6
 33
-!s110 1774474580
+R7
 !i10b 1
-!s108 1774474580.000000
+R8
 !s90 -reportprogress|300|-2008|../ip_defs_pkg.vhd|
 !s107 ../ip_defs_pkg.vhd|
 !i113 1
-Z5 o-2008 -O0
-Z6 tExplicit 1 CvgOpt 0
+R11
+R12
 Epacket_rx
-Z7 w1774474566
-Z8 DPx4 work 11 ip_defs_pkg 0 22 OSA:6el0@AVUE20NYAAQn3
-R1
+Z14 w1774474566
+Z15 DPx4 work 11 ip_defs_pkg 0 22 OSA:6el0@AVUE20NYAAQn3
+R13
 R2
 R3
 !i122 183
 R0
-Z9 8../packet_rx.vhd
-Z10 F../packet_rx.vhd
+Z16 8../packet_rx.vhd
+Z17 F../packet_rx.vhd
 l0
 L11 1
 VHB4;mN1k5=C>ki>i7D_zG3
 !s100 6KzBez6m<4C272H0J:=mk1
-R4
-33
-Z11 !s110 1774474581
-!i10b 1
-Z12 !s108 1774474581.000000
-Z13 !s90 -reportprogress|300|-2008|../packet_rx.vhd|
-Z14 !s107 ../packet_rx.vhd|
-!i113 1
-R5
 R6
+33
+Z18 !s110 1774474581
+!i10b 1
+Z19 !s108 1774474581.000000
+Z20 !s90 -reportprogress|300|-2008|../packet_rx.vhd|
+Z21 !s107 ../packet_rx.vhd|
+!i113 1
+R11
+R12
 Artl
-R8
-R1
+R15
+R13
 R2
 R3
-Z15 DEx4 work 9 packet_rx 0 22 HB4;mN1k5=C>ki>i7D_zG3
+Z22 DEx4 work 9 packet_rx 0 22 HB4;mN1k5=C>ki>i7D_zG3
 !i122 183
 l87
 L23 234
 VoW90m5dXzA^mFIFDZ]N]H2
 !s100 54PCcCMkAk8ennbC`^aOa0
-R4
-33
-R11
-!i10b 1
-R12
-R13
-R14
-!i113 1
-R5
 R6
+33
+R18
+!i10b 1
+R19
+R20
+R21
+!i113 1
+R11
+R12
 Epacket_rx_tb
-Z16 w1774308329
-R8
-R1
+Z23 w1774308329
+R15
+R13
 R2
 R3
 !i122 184
 R0
-Z17 8packet_rx_tb.vhd
-Z18 Fpacket_rx_tb.vhd
+Z24 8packet_rx_tb.vhd
+Z25 Fpacket_rx_tb.vhd
 l0
 L6 1
 Vg4?bzTTHAU2@h^DhBEXgg2
 !s100 IPSPC]>98]a[:@S?3:md@3
-R4
-33
-R11
-!i10b 1
-R12
-Z19 !s90 -reportprogress|300|-2008|packet_rx_tb.vhd|
-Z20 !s107 packet_rx_tb.vhd|
-!i113 1
-R5
 R6
+33
+R18
+!i10b 1
+R19
+Z26 !s90 -reportprogress|300|-2008|packet_rx_tb.vhd|
+Z27 !s107 packet_rx_tb.vhd|
+!i113 1
+R11
+R12
 Asim
+R22
 R15
-R8
-R1
+R13
 R2
 R3
-Z21 DEx4 work 12 packet_rx_tb 0 22 g4?bzTTHAU2@h^DhBEXgg2
+DEx4 work 12 packet_rx_tb 0 22 g4?bzTTHAU2@h^DhBEXgg2
 !i122 184
 l118
-Z22 L9 292
-Z23 VE?[MY_JXecMm9>nhTXBNI2
-Z24 !s100 hSa8NOb6lB?G__aBHSKGJ2
-R4
-33
-R11
-!i10b 1
-R12
-R19
-R20
-!i113 1
-R5
+L9 292
+VE?[MY_JXecMm9>nhTXBNI2
+!s100 hSa8NOb6lB?G__aBHSKGJ2
 R6
+33
+R18
+!i10b 1
+R19
+R26
+R27
+!i113 1
+R11
+R12
+Epacket_tx
+Z28 w1774995684
+R15
+R13
+R2
+R3
+!i122 191
+R0
+Z29 8../packet_tx.vhd
+Z30 F../packet_tx.vhd
+l0
+L7 1
+VGLZ^6kU]P5UnWfbP[?KOW2
+!s100 DF4Ah@[NMa;C81X7:F`oJ1
+R6
+33
+Z31 !s110 1775090653
+!i10b 1
+R8
+Z32 !s90 -reportprogress|300|-2008|../packet_tx.vhd|
+Z33 !s107 ../packet_tx.vhd|
+!i113 1
+R11
+R12
+Artl
+R15
+R13
+R2
+R3
+Z34 DEx4 work 9 packet_tx 0 22 GLZ^6kU]P5UnWfbP[?KOW2
+!i122 191
+l86
+L21 165
+V>]IP6Dd>6f]z>7X5o>1EU3
+!s100 cI0>Zi39o17dnn?DL^g`N3
+R6
+33
+R31
+!i10b 1
+R8
+R32
+R33
+!i113 1
+R11
+R12
+Epacket_tx_tb
+Z35 w1774996111
+R15
+R13
+R2
+R3
+!i122 192
+R0
+Z36 8packet_tx_tb.vhd
+Z37 Fpacket_tx_tb.vhd
+l0
+L6 1
+V5i_5^SFlU[RR?mhg1@DO@1
+!s100 EInjidZ7^d^`ITeldDjk:3
+R6
+33
+R31
+!i10b 1
+Z38 !s108 1775090653.000000
+Z39 !s90 -reportprogress|300|-2008|packet_tx_tb.vhd|
+Z40 !s107 packet_tx_tb.vhd|
+!i113 1
+R11
+R12
+Asim
+R34
+R15
+R13
+R2
+R3
+Z41 DEx4 work 12 packet_tx_tb 0 22 5i_5^SFlU[RR?mhg1@DO@1
+!i122 192
+l71
+Z42 L9 260
+Z43 VGWN5TDS>nb]OH0l?;nd]]0
+Z44 !s100 DOlho44N@G6HQb^Ol;]hz3
+R6
+33
+R31
+!i10b 1
+R38
+R39
+R40
+!i113 1
+R11
+R12
 Etb_packet_rx
-Z25 w1773626470
-R1
+Z45 w1773626470
+R13
 R2
 R3
 !i122 8
 R0
-R17
-R18
+R24
+R25
 l0
 L13 1
 VgM3c381HUOIDQ0Ej;W[fz1
 !s100 3ac?^QSb@_ToWChYQQM4I2
-R4
-33
-Z26 !s110 1773709700
-!i10b 1
-Z27 !s108 1773709700.000000
-Z28 !s90 -reportprogress|300|-2008|-quiet|packet_rx_tb.vhd|
-R20
-!i113 1
-Z29 o-quiet -2008 -O0
 R6
+33
+Z46 !s110 1773709700
+!i10b 1
+Z47 !s108 1773709700.000000
+Z48 !s90 -reportprogress|300|-2008|-quiet|packet_rx_tb.vhd|
+R27
+!i113 1
+Z49 o-quiet -2008 -O0
+R12
 Asim
 DPx4 work 11 ip_defs_pkg 0 22 dj:L8aZDfog>:T1^aWECN2
 DEx4 work 9 packet_rx 0 22 Jf`WYe3UEo35R;]B[?QR53
-R1
+R13
 R2
 R3
 DEx4 work 12 tb_packet_rx 0 22 gM3c381HUOIDQ0Ej;W[fz1
@@ -158,13 +290,13 @@ l197
 L16 365
 V7FnBjaGm?lKV4_77_R2d@3
 !s100 cefo@5Vc<aJVDbOj`bfYk1
-R4
-33
-R26
-!i10b 1
-R27
-R28
-R20
-!i113 1
-R29
 R6
+33
+R46
+!i10b 1
+R47
+R48
+R27
+!i113 1
+R49
+R12

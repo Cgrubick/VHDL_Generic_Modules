@@ -99,7 +99,6 @@ begin
 	-- );
 
 	-- Packet FSM
-
 	process (clk, reset_n)
 	begin
 		if reset_n = '0' then
@@ -155,6 +154,7 @@ begin
 	eth_packet_header <= mac_destination & mac_source & eth_type_length & version_ihl & dscp_ecn
 				& total_length & identification & flags_frag & ttl & protocol & ip_header_checksum
 				& ip_source & ip_destination & udp_port_src & udp_port_dest & udp_length & udp_checksum;
+
 	-- TX Shift Register
 	process (clk)
 	begin

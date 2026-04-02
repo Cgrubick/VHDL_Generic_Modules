@@ -57,6 +57,7 @@ architecture rtl of packet_rx is
     signal mac_destination    : std_logic_vector(47 downto 0);
     signal mac_source         : std_logic_vector(47 downto 0);
     signal eth_type_length    : std_logic_vector(15 downto 0);
+    
     signal ip_source          : std_logic_vector(31 downto 0);
     signal ip_destination     : std_logic_vector(31 downto 0);
     signal udp_port_src       : std_logic_vector(15 downto 0);
