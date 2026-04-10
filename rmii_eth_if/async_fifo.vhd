@@ -49,8 +49,9 @@ architecture rtl of async_fifo is
     signal wr_ptr_gray_rd1, wr_ptr_gray_rd2 : std_logic_vector(ADDR_WIDTH downto 0) := (others => '0');
 
     -- Internal flags
-    signal full_i  : std_logic;
-    signal empty_i : std_logic;
+    signal full_i          : std_logic;
+    signal empty_i         : std_logic;
+    signal wr_ptr_gray_next : std_logic_vector(ADDR_WIDTH downto 0);
 
     -- Convert binary to Gray code
     function bin_to_gray(b : unsigned) return std_logic_vector is
@@ -64,7 +65,7 @@ begin
     rd_empty <= empty_i;
 
     -- Write port
-    process(wr_clk)
+    process(wr_clk, wr_rst_n)
     begin
         if rising_edge(wr_clk) then
             if wr_en = '1' and full_i = '0' then
@@ -99,28 +100,19 @@ begin
         end if;
     end process;
 
-    -- Full: write Gray ptr would equal read Gray ptr with MSBs inverted
+    -- Next write pointer in Gray code (combinatorial)
+    wr_ptr_gray_next <= bin_to_gray(wr_ptr_bin + 1);
+
+    -- Full: next write Gray ptr matches read Gray ptr with top 2 bits inverted
     process(wr_clk, wr_rst_n)
     begin
         if wr_rst_n = '0' then
             full_i <= '0';
         elsif rising_edge(wr_clk) then
-            if wr_en = '1' and full_i = '0' then
-                -- next write pointer in Gray code
-                if bin_to_gray(wr_ptr_bin + 1) =
-                   (not rd_ptr_gray_wr2(ADDR_WIDTH downto ADDR_WIDTH-1) & rd_ptr_gray_wr2(ADDR_WIDTH-2 downto 0)) then
-                    full_i <= '1';
-                else
-                    full_i <= '0';
-                end if;
-            elsif full_i = '1' and wr_en = '0' then
-                -- de-assert full when read side has consumed (rd ptr advanced)
-                if bin_to_gray(wr_ptr_bin) =
-                   (not rd_ptr_gray_wr2(ADDR_WIDTH downto ADDR_WIDTH-1) & rd_ptr_gray_wr2(ADDR_WIDTH-2 downto 0)) then
-                    full_i <= '1';
-                else
-                    full_i <= '0';
-                end if;
+            if wr_ptr_gray_next = (not rd_ptr_gray_wr2(ADDR_WIDTH downto ADDR_WIDTH-1) & rd_ptr_gray_wr2(ADDR_WIDTH-2 downto 0)) then
+                full_i <= '1';
+            else
+                full_i <= '0';
             end if;
         end if;
     end process;
