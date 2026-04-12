@@ -8,7 +8,6 @@ entity packet_tx is
 	port (
 		clk             : in std_logic;
 		reset_n         : in std_logic;
-		data_i          : in std_logic_vector(7 downto 0);
 		S_AXI_S_TVALID  : in std_logic;
 		S_AXI_S_TDATA   : in std_logic_vector(7 downto 0);
 		S_AXI_S_TLAST   : in std_logic;
@@ -32,29 +31,28 @@ architecture rtl of packet_tx is
 	
 	component async_fifo is
 		generic (
-        DATA_WIDTH : positive := 8;
-        ADDR_WIDTH : positive := 4   -- depth = 2**ADDR_WIDTH
+            DATA_WIDTH : positive := 8;
+            ADDR_WIDTH : positive := 4   -- depth = 2**ADDR_WIDTH
     	);
 		port (
-        -- Write side
-        wr_clk   : in  std_logic;
-        wr_rst_n : in  std_logic;
-        wr_en    : in  std_logic;
-        wr_data  : in  std_logic_vector(DATA_WIDTH-1 downto 0);
-        wr_full  : out std_logic;
-
-        -- Read side
-        rd_clk   : in  std_logic;
-        rd_rst_n : in  std_logic;
-        rd_en    : in  std_logic;
-        rd_data  : out std_logic_vector(DATA_WIDTH-1 downto 0);
-        rd_empty : out std_logic
+            -- Write side
+            wr_clk   : in  std_logic;
+            wr_rst_n : in  std_logic;
+            wr_en    : in  std_logic;
+            wr_data  : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+            wr_full         : out std_logic;
+            wr_afull  : out std_logic;
+            -- Read side
+            rd_clk   : in  std_logic;
+            rd_rst_n : in  std_logic;
+            rd_en    : in  std_logic;
+            rd_data         : out std_logic_vector(DATA_WIDTH-1 downto 0);
+            rd_empty        : out std_logic;
+            rd_aempty : out std_logic
 		);
 	end component;
 
 	constant PAYLOAD_BYTE_COUNT		: integer := 64;
-	constant MII_WIDTH              : integer := 2;
-	constant FIRST_PACKET_IGNORE    : integer := 0;
 	constant HEADER_BYTES           : integer := 42;
 	constant ETH_HEADER_BITS        : integer := HEADER_BYTES * 8;  -- 336 bits
 	signal SFD_PREAMBLE           : std_logic_vector(63 downto 0) := x"d555555555555555";
@@ -63,7 +61,6 @@ architecture rtl of packet_tx is
 
 	type eth_states is (IDLE_S, PREAMBLE_S, HEADER_S, DATA_S, FCS_S, WAIT_S);
 	signal current_state      : eth_states;
-	signal state_counter      : unsigned(31 downto 0);
 
 	signal crc_data         	: std_logic_vector(1 downto 0);
 	signal crc_in           	: std_logic_vector(31 downto 0);
@@ -75,7 +72,6 @@ architecture rtl of packet_tx is
 	signal header_done			: std_logic;
 	signal data_done			: std_logic;
 
-	
 	signal eth_packet_header	: std_logic_vector(ETH_HEADER_BITS-1 downto 0);
 	signal mac_destination    	: std_logic_vector(47 downto 0) := HOST_MAC;
 	signal mac_source         	: std_logic_vector(47 downto 0) := FPGA_MAC;
@@ -101,14 +97,18 @@ architecture rtl of packet_tx is
 	signal packet_count			: unsigned(15 downto 0);
 
 	-- FIFO Signals
-	signal wr_rst_n : std_logic; 
-	signal wr_en    : std_logic; 
-	signal wr_data  : std_logic_vector(FIFO_WIDTH - 1 downto 0);
-	signal wr_full  : std_logic; 
-	signal rd_rst_n : std_logic; 
-	signal rd_en    : std_logic; 
-	signal rd_data  : std_logic_vector(FIFO_WIDTH - 1 downto 0); 
-	signal rd_empty : std_logic; 
+	signal wr_rst_n        : std_logic;
+	signal wr_en           : std_logic;
+	signal wr_data         : std_logic_vector(FIFO_WIDTH - 1 downto 0);
+	signal wr_full         : std_logic;
+	signal wr_afull  : std_logic;
+	signal rd_rst_n        : std_logic;
+	signal rd_en           : std_logic;
+	signal rd_data         : std_logic_vector(FIFO_WIDTH - 1 downto 0);
+	signal rd_empty        : std_logic;
+	signal rd_aempty : std_logic;
+
+	signal fcs_done : std_logic;
 
 
 	signal crc_out_reg 			 : std_logic_vector(31 downto 0);
@@ -134,17 +134,19 @@ begin
        		ADDR_WIDTH => FIFO_ADDR
 		)
 		port map (
-        	wr_clk   => clk, 
-        	wr_rst_n => wr_rst_n,
-        	wr_en    => wr_en,   
-        	wr_data  => wr_data, 
-        	wr_full  => wr_full, 
+        	wr_clk          => clk, 
+        	wr_rst_n        => wr_rst_n,
+        	wr_en           => wr_en,   
+        	wr_data         => wr_data, 
+        	wr_full         => wr_full,
+        	wr_afull  => wr_afull,
         	-- Read side
-        	rd_clk   => clk,  
-        	rd_rst_n => rd_rst_n,
-        	rd_en    => rd_en,   
-        	rd_data  => rd_data, 
-        	rd_empty => rd_empty
+        	rd_clk          => clk,  
+        	rd_rst_n        => rd_rst_n,
+        	rd_en           => rd_en,   
+        	rd_data         => rd_data,
+        	rd_empty        => rd_empty,
+        	rd_aempty => rd_aempty
 		);
 
 	-- Packet FSM
@@ -172,7 +174,12 @@ begin
 					end if;
 				when DATA_S =>	
 					if(packet_count(1 downto 0) = "10") then 
+                        if(rd_aempty = '1') then 
+						rd_en <= '0';
+                        else 
 						rd_en <= '1';
+
+                        end if;
 					end if;
 					if data_done = '1' then 
 						current_state <= FCS_S;
@@ -212,18 +219,18 @@ begin
 	process (clk)
 	begin
 		if reset_n = '0' then
-			txdata <= (others => '0');
-			crc_out_reg <= (others => '0');			
+			txdata                  <= (others => '0');
+			crc_out_reg             <= (others => '0');			
 			eth_packet_header_reg 	<= (others => '0');
-			rd_data_reg 	<= (others => '0');		
-			crc_in <= x"FFFFFFFF";
+			rd_data_reg             <= (others => '0');		
+			crc_in                  <= x"FFFFFFFF";
 		elsif rising_edge(clk) then
 			crc_out_reg 			<= crc_out;
 			eth_packet_header_reg 	<= eth_packet_header;
 			rd_data_reg 			<= rd_data;
 			if crc_en = '1' then
-          crc_in <= crc_out;  -- feedback for iterative computation
-      end if;
+                crc_in <= crc_out;  -- feedback for iterative computation
+            end if;
 			if current_state = PREAMBLE_S then
 				txdata <= SFD_PREAMBLE(1 downto 0);
 				SFD_PREAMBLE <= std_logic_vector(shift_right(unsigned(SFD_PREAMBLE), 2)); 
@@ -234,8 +241,8 @@ begin
 				txdata <= rd_data_reg(1 downto 0);
 				rd_data_reg <= std_logic_vector(shift_right(unsigned(rd_data_reg), 2));
 				if packet_count(1 downto 0) = "11" then
-      				rd_data_reg <= rd_data;  -- overrides shift, loads next byte
-  				end if;
+      		        rd_data_reg <= rd_data;  -- overrides shift, loads next byte
+  			    end if;
 			elsif current_state = FCS_S then
 				txdata <= crc_out_reg(1 downto 0);
 				crc_out_reg <= std_logic_vector(shift_right(unsigned(crc_out_reg), 2));
@@ -243,24 +250,16 @@ begin
 		end if;
 	end process;
 
-
- 	
-	
-	tx_start <= S_AXI_S_TLAST;
-
-	ETH_TXD		<= txdata;
-  	ETH_TXEN <= '1' when current_state = PREAMBLE_S or current_state = HEADER_S
-  	                  or current_state = DATA_S     or current_state = FCS_S
-  	            else '0';
-	
-	wr_en <= S_AXI_S_TVALID and not wr_full;
-	wr_data <= S_AXI_S_TDATA;
-
- 
+	tx_start        <= S_AXI_S_TLAST;
+	wr_en           <= S_AXI_S_TVALID and not wr_full;
+	wr_data         <= S_AXI_S_TDATA;
 	data_done 	    <= '1' when rd_empty = '1' else '0';
 	header_done		<= '1' when current_state = HEADER_S   and packet_count = 167 else '0'; 
 	preamble_done 	<= '1' when current_state = PREAMBLE_S and packet_count = 31 else '0';
-
+	ETH_TXD		    <= txdata;
+  	ETH_TXEN        <= '1' when current_state = PREAMBLE_S or current_state = HEADER_S
+  	                   or current_state = DATA_S     or current_state = FCS_S
+  	                    else '0';
 	S_AXI_S_TREADY <= not wr_full;
 
 end rtl;

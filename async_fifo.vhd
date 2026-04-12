@@ -13,18 +13,19 @@ entity async_fifo is
     );
     port (
         -- Write side
-        wr_clk   : in  std_logic;
-        wr_rst_n : in  std_logic;
-        wr_en    : in  std_logic;
-        wr_data  : in  std_logic_vector(DATA_WIDTH-1 downto 0);
-        wr_full  : out std_logic;
-
+        wr_clk          : in  std_logic;
+        wr_rst_n        : in  std_logic;
+        wr_en           : in  std_logic;
+        wr_data         : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        wr_full         : out std_logic;
+        wr_afull  : out std_logic;
         -- Read side
-        rd_clk   : in  std_logic;
-        rd_rst_n : in  std_logic;
-        rd_en    : in  std_logic;
-        rd_data  : out std_logic_vector(DATA_WIDTH-1 downto 0);
-        rd_empty : out std_logic
+        rd_clk          : in  std_logic;
+        rd_rst_n        : in  std_logic;
+        rd_en           : in  std_logic;
+        rd_data         : out std_logic_vector(DATA_WIDTH-1 downto 0);
+        rd_empty        : out std_logic;
+        rd_aempty : out std_logic
     );
 end entity async_fifo;
 
@@ -49,9 +50,11 @@ architecture rtl of async_fifo is
     signal wr_ptr_gray_rd1, wr_ptr_gray_rd2 : std_logic_vector(ADDR_WIDTH downto 0) := (others => '0');
 
     -- Internal flags
-    signal full_i          : std_logic;
-    signal empty_i         : std_logic;
+    signal full_i           : std_logic;
+    signal empty_i          : std_logic;
     signal wr_ptr_gray_next : std_logic_vector(ADDR_WIDTH downto 0);
+    signal rd_count         : unsigned(ADDR_WIDTH downto 0);
+    signal wr_count         : unsigned(ADDR_WIDTH downto 0);
 
     -- Convert binary to Gray code
     function bin_to_gray(b : unsigned) return std_logic_vector is
@@ -64,8 +67,14 @@ begin
     wr_full  <= full_i;
     rd_empty <= empty_i;
 
+    rd_count        <= wr_ptr_bin - rd_ptr_bin;
+    rd_aempty <= '1' when rd_count <= 1 else '0';
+
+    wr_count        <= wr_ptr_bin - rd_ptr_bin;
+    wr_afull  <= '1' when wr_count >= (DEPTH - 1) else '0';
+
     -- Write port
-    p_write : process(wr_clk)
+    process(wr_clk, wr_rst_n)
     begin
         if rising_edge(wr_clk) then
             if wr_en = '1' and full_i = '0' then
@@ -75,7 +84,7 @@ begin
     end process;
 
     -- Write pointer update
-    p_wr_ptr : process(wr_clk, wr_rst_n)
+    process(wr_clk, wr_rst_n)
     begin
         if wr_rst_n = '0' then
             wr_ptr_bin  <= (others => '0');
@@ -89,7 +98,7 @@ begin
     end process;
 
     -- Synchronize read Gray pointer into write clock domain (2-FF synchronizer)
-    p_sync_rd_ptr : process(wr_clk, wr_rst_n)
+    process(wr_clk, wr_rst_n)
     begin
         if wr_rst_n = '0' then
             rd_ptr_gray_wr1 <= (others => '0');
@@ -104,7 +113,7 @@ begin
     wr_ptr_gray_next <= bin_to_gray(wr_ptr_bin + 1);
 
     -- Full: next write Gray ptr matches read Gray ptr with top 2 bits inverted
-    p_full : process(wr_clk, wr_rst_n)
+    process(wr_clk, wr_rst_n)
     begin
         if wr_rst_n = '0' then
             full_i <= '0';
@@ -121,7 +130,7 @@ begin
     rd_data <= ram(to_integer(rd_ptr_bin(ADDR_WIDTH-1 downto 0)));
 
     -- Read pointer update
-    p_rd_ptr : process(rd_clk, rd_rst_n)
+    process(rd_clk, rd_rst_n)
     begin
         if rd_rst_n = '0' then
             rd_ptr_bin  <= (others => '0');
@@ -135,7 +144,7 @@ begin
     end process;
 
     -- Synchronize write Gray pointer into read clock domain (2-FF synchronizer)
-    p_sync_wr_ptr : process(rd_clk, rd_rst_n)
+    process(rd_clk, rd_rst_n)
     begin
         if rd_rst_n = '0' then
             wr_ptr_gray_rd1 <= (others => '0');
@@ -147,7 +156,7 @@ begin
     end process;
 
     -- Empty: read Gray ptr equals synchronized write Gray ptr
-    p_empty : process(rd_clk, rd_rst_n)
+    process(rd_clk, rd_rst_n)
     begin
         if rd_rst_n = '0' then
             empty_i <= '1';

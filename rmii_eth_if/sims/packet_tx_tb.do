@@ -51,11 +51,13 @@ add wave -divider "FIFO"
 add wave -radix bin              /packet_tx_tb/DUT/wr_rst_n
 add wave -radix bin              /packet_tx_tb/DUT/wr_en   
 add wave -radix hex              /packet_tx_tb/DUT/wr_data 
-add wave -radix bin              /packet_tx_tb/DUT/wr_full 
+add wave -radix bin              /packet_tx_tb/DUT/wr_full
+add wave -radix bin              /packet_tx_tb/DUT/wr_afull
 add wave -radix bin              /packet_tx_tb/DUT/rd_rst_n
 add wave -radix bin              /packet_tx_tb/DUT/rd_en   
 add wave -radix hex              /packet_tx_tb/DUT/rd_data 
 add wave -radix bin              /packet_tx_tb/DUT/rd_empty
+add wave -radix bin              /packet_tx_tb/DUT/rd_aempty
 
 add wave -divider "Decoded Packet"
 add wave -radix hex  /packet_tx_tb/DUT/mac_destination
