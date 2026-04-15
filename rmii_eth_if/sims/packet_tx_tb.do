@@ -24,6 +24,13 @@ add wave -divider "Clock / Reset"
 add wave -radix bin              /packet_tx_tb/clk
 add wave -radix bin              /packet_tx_tb/reset_n
 
+add wave -divider "TB Signals"
+add wave -radix unsigned              /packet_tx_tb/tx_byte_count
+add wave -radix bin         /packet_tx_tb/saw_preamble
+add wave -radix bin         /packet_tx_tb/saw_sfd
+add wave -radix bin         /packet_tx_tb/crc_ok_count
+add wave -radix bin         /packet_tx_tb/collecting
+
 add wave -divider "AXI-Stream In"
 add wave -radix bin              /packet_tx_tb/S_AXI_S_TVALID
 add wave -radix hex              /packet_tx_tb/S_AXI_S_TDATA
@@ -46,6 +53,7 @@ add wave -radix bin              /packet_tx_tb/DUT/crc_en
 add wave -radix hex              /packet_tx_tb/DUT/crc_in
 add wave -radix hex              /packet_tx_tb/DUT/crc_out
 add wave -radix hex              /packet_tx_tb/DUT/eth_packet_header
+add wave -radix hex              /packet_tx_tb/DUT/crc_out_reg
 
 add wave -divider "FIFO"
 add wave -radix bin              /packet_tx_tb/DUT/wr_rst_n

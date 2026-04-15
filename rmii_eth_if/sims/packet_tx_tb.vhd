@@ -19,7 +19,7 @@ architecture sim of packet_tx_tb is
     signal ETH_TXD        : std_logic_vector(1 downto 0);
     signal ETH_TXEN       : std_logic;
 
-    signal test_name : string(1 to 40) := (others => ' ');
+    signal test_name    : string(1 to 40) := (others => ' ');
 
     -- collect process writes these; stim reads them 4 clocks after
     -- lowering 'collecting' (enough time for signal assignment to settle)
@@ -27,8 +27,32 @@ architecture sim of packet_tx_tb is
     signal tx_byte_count : integer   := 0;
     signal saw_preamble  : boolean   := false;
     signal saw_sfd       : boolean   := false;
+    signal crc_ok_count  : integer   := 0;   -- frames in window with valid FCS
 
     type byte_array is array (natural range <>) of std_logic_vector(7 downto 0);
+
+    -- -----------------------------------------------------------------------
+    -- CRC-32 (IEEE 802.3): poly=0xEDB88320, init=0xFFFFFFFF, no final XOR.
+    -- Processes bits LSB-first.  Feed (header + payload + FCS) through this;
+    -- a valid frame always produces the residue 0x2144DF1C.
+    -- -----------------------------------------------------------------------
+    function crc32_byte(
+        crc : std_logic_vector(31 downto 0);
+        b   : std_logic_vector(7 downto 0)
+    ) return std_logic_vector is
+        variable c : std_logic_vector(31 downto 0);
+    begin
+        c := crc;
+        for i in 0 to 7 loop
+            if (c(0) xor b(i)) = '1' then
+                c := '0' & c(31 downto 1);
+                c := c xor x"EDB88320";
+            else
+                c := '0' & c(31 downto 1);
+            end if;
+        end loop;
+        return c;
+    end function;
 
     -- Send one byte over AXI-S; waits for TREADY handshake
     procedure send_byte (
@@ -74,7 +98,6 @@ begin
         port map (
             clk            => clk,
             reset_n        => reset_n,
-            data_i         => (others => '0'),
             S_AXI_S_TVALID => S_AXI_S_TVALID,
             S_AXI_S_TDATA  => S_AXI_S_TDATA,
             S_AXI_S_TLAST  => S_AXI_S_TLAST,
@@ -138,6 +161,8 @@ begin
         check(tx_byte_count = 42 + PAYLOAD'length + 4,
               "TEST1: expected " & integer'image(42 + PAYLOAD'length + 4) &
               " bytes after SFD, got " & integer'image(tx_byte_count));
+        check(crc_ok_count = 1,
+              "TEST1: CRC check failed (valid frames = " & integer'image(crc_ok_count) & ", expected 1)");
         report "TEST 1 complete: " & integer'image(tx_byte_count) & " bytes after SFD";
         wait for 10 * CLK_PERIOD;
 
@@ -159,6 +184,8 @@ begin
         check(tx_byte_count = 2 * (42 + PAYLOAD'length + 4),
               "TEST2: expected " & integer'image(2 * (42 + PAYLOAD'length + 4)) &
               " bytes, got " & integer'image(tx_byte_count));
+        check(crc_ok_count = 2,
+              "TEST2: CRC check failed (valid frames = " & integer'image(crc_ok_count) & ", expected 2)");
         report "TEST 2 complete: " & integer'image(tx_byte_count) & " bytes after SFDs";
         wait for 10 * CLK_PERIOD;
 
@@ -177,6 +204,8 @@ begin
         check(tx_byte_count = 42 + LONG_PAYLOAD'length + 4,
               "TEST3: expected " & integer'image(42 + LONG_PAYLOAD'length + 4) &
               " bytes after SFD, got " & integer'image(tx_byte_count));
+        check(crc_ok_count = 1,
+              "TEST3: CRC check failed (valid frames = " & integer'image(crc_ok_count) & ", expected 1)");
         report "TEST 3 complete: " & integer'image(tx_byte_count) & " bytes after SFD";
         wait for 10 * CLK_PERIOD;
 
@@ -191,7 +220,8 @@ begin
     -- Collector: samples ETH_TXD dibits while ETH_TXEN=1,
     -- reassembles bytes LSB-first, detects preamble/SFD per frame,
     -- counts post-SFD bytes (header + payload + FCS) across all frames
-    -- in the test window.
+    -- in the test window.  Also checks each frame's FCS using the
+    -- CRC-32 residue property: CRC(all frame bytes incl FCS) = 0x2144DF1C.
     -- ============================================================
     collect : process
         type col_state_t is (PREAMBLE_C, DATA_C);
@@ -202,6 +232,8 @@ begin
         variable preamble_cnt : integer := 0;
         variable preamble_ok  : boolean := false;
         variable sfd_ok       : boolean := false;
+        variable frame_crc    : std_logic_vector(31 downto 0) := (others => '1');
+        variable crc_ok_local : integer := 0;
     begin
         loop  -- one iteration per test
 
@@ -213,6 +245,8 @@ begin
             preamble_ok  := false;
             sfd_ok       := false;
             col_state    := PREAMBLE_C;
+            frame_crc    := (others => '1');
+            crc_ok_local := 0;
 
             loop  -- sample every clock while window is open
                 wait until rising_edge(clk);
@@ -233,10 +267,11 @@ begin
                                 if cur_byte = x"55" then
                                     preamble_cnt := preamble_cnt + 1;
                                 elsif cur_byte = x"D5" then
-                                    sfd_ok      := true;
-                                    preamble_ok := (preamble_cnt >= 7);
-                                    col_state   := DATA_C;
+                                    sfd_ok       := true;
+                                    preamble_ok  := (preamble_cnt >= 7);
+                                    col_state    := DATA_C;
                                     preamble_cnt := 0;
+                                    frame_crc    := (others => '1');  -- init CRC for this frame
                                 end if;
                             when DATA_C =>
                                 -- Only print individual bytes for small frames
@@ -245,14 +280,27 @@ begin
                                     report "TX byte " & integer'image(cnt) &
                                            " = 0x" & to_hstring(cur_byte);
                                 end if;
-                                cnt := cnt + 1;
+                                cnt       := cnt + 1;
+                                frame_crc := crc32_byte(frame_crc, cur_byte);
                         end case;
                     end if;
                 else
-                    -- ETH_TXEN deasserted: reset accumulator for next frame
+                    -- ETH_TXEN deasserted: end of frame
+                    if col_state = DATA_C then
+                        -- CRC residue: feeding (header+payload+FCS) through CRC with
+                        -- init=0xFFFFFFFF, no final XOR, always yields 0x2144DF1C
+                        if frame_crc = x"2144DF1C" then
+                            crc_ok_local := crc_ok_local + 1;
+                            report "Frame FCS OK (residue match)";
+                        else
+                            report "Frame FCS FAIL: residue = 0x" & to_hstring(frame_crc) severity error;
+                        end if;
+                    end if;
+                    -- Reset accumulator for next frame
                     dibit_idx := 0;
                     cur_byte  := (others => '0');
                     col_state := PREAMBLE_C;
+                    frame_crc := (others => '1');
                 end if;
                 exit when collecting = '0';
             end loop;
@@ -261,6 +309,7 @@ begin
             tx_byte_count <= cnt;
             saw_preamble  <= preamble_ok;
             saw_sfd       <= sfd_ok;
+            crc_ok_count  <= crc_ok_local;
 
         end loop;
     end process collect;
