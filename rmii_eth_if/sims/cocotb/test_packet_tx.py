@@ -68,7 +68,7 @@ def _build_header() -> bytes:
         0x00, 0x00,        # identification
         0x40, 0x00,        # flags: don't fragment
         0x40, 0x11,        # TTL=64, protocol=UDP
-        0x00, 0x00,        # header checksum (disabled)
+        0x25, 0xF1,        # header checksum
     ]) + FPGA_IP + HOST_IP                                     # 20 bytes
     udp = struct.pack('>HHHH',
         FPGA_PORT, HOST_PORT,
