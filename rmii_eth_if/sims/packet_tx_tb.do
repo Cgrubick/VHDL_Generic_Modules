@@ -39,9 +39,31 @@ add wave -radix unsigned /packet_tx_tb/DUT/packet_count
 add wave -radix bin      /packet_tx_tb/DUT/tx_start
 add wave -radix bin      /packet_tx_tb/DUT/crc_en
 add wave -radix bin      /packet_tx_tb/DUT/rd_empty
-add wave -radix hex      /packet_tx_tb/DUT/crc_in
-add wave -radix hex      /packet_tx_tb/DUT/crc_out
+
+add wave -divider "CRC"
+add wave -radix bin      /packet_tx_tb/DUT/crc_rst_n
+add wave -radix hex      /packet_tx_tb/DUT/txdata
+add wave -radix bin      /packet_tx_tb/DUT/crc_en
+add wave -radix hex      /packet_tx_tb/DUT/fcs
 add wave -radix hex      /packet_tx_tb/DUT/crc_out_reg
+
+add wave -divider "Packet Section flags"
+add wave -radix bin      /packet_tx_tb/DUT/data_done 	    
+add wave -radix bin      /packet_tx_tb/DUT/fcs_done        
+add wave -radix bin      /packet_tx_tb/DUT/header_done		
+add wave -radix bin      /packet_tx_tb/DUT/preamble_done 	
+add wave -radix bin      /packet_tx_tb/DUT/sfd_done
+ 		
+add wave -divider "FIFO"
+add wave -radix bin      /packet_tx_tb/DUT/clk
+add wave -radix bin      /packet_tx_tb/DUT/wr_en
+add wave -radix hex      /packet_tx_tb/DUT/wr_data
+add wave -radix bin      /packet_tx_tb/DUT/wr_full
+add wave -radix bin      /packet_tx_tb/DUT/wr_afull
+add wave -radix bin      /packet_tx_tb/DUT/rd_en 
+add wave -radix hex      /packet_tx_tb/DUT/rd_data
+add wave -radix bin      /packet_tx_tb/DUT/rd_empty
+add wave -radix bin      /packet_tx_tb/DUT/rd_aempty
 
 # ---- Run ---------------------------------------------------
 run 50 us
