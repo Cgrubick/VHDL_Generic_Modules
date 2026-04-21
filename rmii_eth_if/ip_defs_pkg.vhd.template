@@ -1,0 +1,18 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+-- Copy this file to ip_defs_pkg.vhd and fill in your real addresses.
+-- ip_defs_pkg.vhd is gitignored so your addresses stay private.
+package ip_defs_pkg is
+    -- IPv4 addresses (32-bit)  e.g. 192.168.1.100 -> x"C0A80164"
+    constant FPGA_IP        : std_logic_vector(31 downto 0) := x"00000000"; -- TODO: your FPGA IP
+    constant HOST_IP        : std_logic_vector(31 downto 0) := x"00000000"; -- TODO: your host IP
+    -- UDP/TCP ports (16-bit)
+    constant FPGA_PORT      : std_logic_vector(15 downto 0) := x"0000";     -- TODO: your port
+    constant HOST_PORT      : std_logic_vector(15 downto 0) := x"0000";     -- TODO: your port
+    -- MAC addresses (48-bit)
+    constant FPGA_MAC       : std_logic_vector(47 downto 0) := x"000000000000"; -- TODO: FPGA MAC
+    constant HOST_MAC       : std_logic_vector(47 downto 0) := x"000000000000"; -- TODO: host MAC
+    constant CHECK_DEST     : std_logic := '1';
+end package ip_defs_pkg;

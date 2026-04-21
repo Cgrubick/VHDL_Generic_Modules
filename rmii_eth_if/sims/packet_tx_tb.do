@@ -37,8 +37,6 @@ add wave -divider "DUT Internals"
 add wave -radix ascii    /packet_tx_tb/DUT/current_state
 add wave -radix unsigned /packet_tx_tb/DUT/packet_count
 add wave -radix bin      /packet_tx_tb/DUT/tx_start
-add wave -radix bin      /packet_tx_tb/DUT/crc_en
-add wave -radix bin      /packet_tx_tb/DUT/rd_empty
 
 add wave -divider "CRC"
 add wave -radix bin      /packet_tx_tb/DUT/crc_rst_n
@@ -47,13 +45,20 @@ add wave -radix bin      /packet_tx_tb/DUT/crc_en
 add wave -radix hex      /packet_tx_tb/DUT/fcs
 add wave -radix hex      /packet_tx_tb/DUT/crc_out_reg
 
-add wave -divider "Packet Section flags"
+add wave -divider "Packet Section flags"	
+add wave -radix bin      /packet_tx_tb/DUT/preamble_done 
+add wave -radix bin      /packet_tx_tb/DUT/sfd_done 
+add wave -radix bin      /packet_tx_tb/DUT/header_done	
 add wave -radix bin      /packet_tx_tb/DUT/data_done 	    
-add wave -radix bin      /packet_tx_tb/DUT/fcs_done        
-add wave -radix bin      /packet_tx_tb/DUT/header_done		
-add wave -radix bin      /packet_tx_tb/DUT/preamble_done 	
-add wave -radix bin      /packet_tx_tb/DUT/sfd_done
- 		
+add wave -radix bin      /packet_tx_tb/DUT/fcs_done   
+
+add wave -divider "buffers "	
+add wave -radix hex      /packet_tx_tb/DUT/preamble_buffer	
+add wave -radix hex      /packet_tx_tb/DUT/sfd_buffer		
+add wave -radix hex      /packet_tx_tb/DUT/header_buffer 	
+add wave -radix hex      /packet_tx_tb/DUT/rd_data_buffer	
+add wave -radix hex      /packet_tx_tb/DUT/fcs_buffer	
+	
 add wave -divider "FIFO"
 add wave -radix bin      /packet_tx_tb/DUT/clk
 add wave -radix bin      /packet_tx_tb/DUT/wr_en

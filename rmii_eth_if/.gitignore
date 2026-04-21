@@ -1,0 +1,7 @@
+# Local IP/MAC address definitions — contains real network addresses, never commit.
+# Copy ip_defs_pkg.vhd.template to ip_defs_pkg.vhd and fill in your addresses.
+ip_defs_pkg.vhd
+
+# Simulation build artefacts
+sim_build/
+sims/cocotb/results.xml
