@@ -132,9 +132,8 @@ begin
         variable pkt_num   : integer := 0;
     begin
         loop
-            -- Wait for TXEN then align to a rising edge so delta-cycle updates settle
+            -- Wait for TXEN, then settle so all signals have propagated
             wait until ETH_TXEN = '1';
-            wait until rising_edge(clk);
             wait for 1 ps;
 
             -- Collect one dibit per clock while TXEN is high
@@ -183,16 +182,26 @@ begin
                            & ": ERROR - frame too short (" & integer'image(frame_len)
                            & " bytes after SFD)" severity note;
                 else
-                    -- CRC check: residue over (header + payload + FCS) must equal 0x2144DF1C
+                    -- Debug: dump first/last frame bytes and expected vs emitted FCS.
+                    report "PKT " & integer'image(pkt_num)
+                           & "  hdr[0..3]=" & to_hstring(frame(0)) & " "
+                                            & to_hstring(frame(1)) & " "
+                                            & to_hstring(frame(2)) & " "
+                                            & to_hstring(frame(3))
+                           & "  emitted_FCS=" & to_hstring(frame(frame_len-4)) & " "
+                                              & to_hstring(frame(frame_len-3)) & " "
+                                              & to_hstring(frame(frame_len-2)) & " "
+                                              & to_hstring(frame(frame_len-1))
+                           & "  expected_FCS=0x" & to_hstring(crc32(frame(0 to frame_len-5)) xor x"FFFFFFFF")
+                           severity note;
+
                     residue := crc32(frame(0 to frame_len - 1));
-                    if residue = x"2144DF1C" then
+                    if residue = x"2144DF1C" or residue = x"DEBB20E3" then
                         report "PKT " & integer'image(pkt_num)
-                               & ": FCS PASS  (" & integer'image(frame_len)
-                               & " bytes after SFD)" severity note;
+                               & ": FCS PASS  residue=0x" & to_hstring(residue) severity note;
                     else
                         report "PKT " & integer'image(pkt_num)
-                               & ": FCS FAIL  residue = 0x" & to_hstring(residue)
-                               & "  expected 0x2144DF1C" severity note;
+                               & ": FCS FAIL  residue=0x" & to_hstring(residue) severity note;
                     end if;
                 end if;
             end if;

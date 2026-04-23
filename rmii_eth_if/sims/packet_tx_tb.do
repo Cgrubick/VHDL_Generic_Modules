@@ -43,7 +43,6 @@ add wave -radix bin      /packet_tx_tb/DUT/crc_rst_n
 add wave -radix hex      /packet_tx_tb/DUT/txdata
 add wave -radix bin      /packet_tx_tb/DUT/crc_en
 add wave -radix hex      /packet_tx_tb/DUT/fcs
-add wave -radix hex      /packet_tx_tb/DUT/crc_out_reg
 
 add wave -divider "Packet Section flags"	
 add wave -radix bin      /packet_tx_tb/DUT/preamble_done 
@@ -58,7 +57,7 @@ add wave -radix hex      /packet_tx_tb/DUT/sfd_buffer
 add wave -radix hex      /packet_tx_tb/DUT/header_buffer 	
 add wave -radix hex      /packet_tx_tb/DUT/rd_data_buffer	
 add wave -radix hex      /packet_tx_tb/DUT/fcs_buffer	
-	
+
 add wave -divider "FIFO"
 add wave -radix bin      /packet_tx_tb/DUT/clk
 add wave -radix bin      /packet_tx_tb/DUT/wr_en

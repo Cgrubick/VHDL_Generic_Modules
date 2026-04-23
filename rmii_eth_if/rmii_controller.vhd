@@ -215,23 +215,23 @@ begin
 
 
 
-    -- ILA type casts
-    ila_eth_txd     <= eth_txd_i;
-    ila_eth_txen(0) <= eth_txen_i;
+    -- -- ILA type casts
+    -- ila_eth_txd     <= eth_txd_i;
+    -- ila_eth_txen(0) <= eth_txen_i;
 
-    ila : ila_0
-    PORT MAP (
-        clk    => eth_clk,
-        probe0 => ila_eth_txd,                        -- ETH_TXD       [1:0]
-        probe1 => ila_eth_txen,                       -- ETH_TXEN      [0]
-        probe2 => (0 => tvalid),                      -- tvalid        [0]
-        probe3 => (0 => tlast),                       -- tlast         [0]
-        probe4 => tdata,                              -- tdata         [7:0]
-        probe5 => (0 => tready),                      -- tready        [0]
-        probe6 => (others => '0'),
-        probe7 => std_logic_vector(pkt_timer),
-        probe8 => (others => '0')
-    );
+    -- ila : ila_0
+    -- PORT MAP (
+    --     clk    => eth_clk,
+    --     probe0 => ila_eth_txd,                        -- ETH_TXD       [1:0]
+    --     probe1 => ila_eth_txen,                       -- ETH_TXEN      [0]
+    --     probe2 => (0 => tvalid),                      -- tvalid        [0]
+    --     probe3 => (0 => tlast),                       -- tlast         [0]
+    --     probe4 => tdata,                              -- tdata         [7:0]
+    --     probe5 => (0 => tready),                      -- tready        [0]
+    --     probe6 => (others => '0'),
+    --     probe7 => std_logic_vector(pkt_timer),
+    --     probe8 => (others => '0')
+    -- );
     
         -- ERROR REPORTING RGB LEDS, GREEN - No Error, Red Error in XYZ TODO
     LED16_G <= not ETH_RXERR;
