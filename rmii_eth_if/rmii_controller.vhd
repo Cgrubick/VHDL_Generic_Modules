@@ -44,6 +44,7 @@ architecture rtl of rmii_controller is
     -- Blink counter: holds LED on ~500 ms after each packet fires
     -- 25-bit counter @ 50 MHz: 2^25 / 50e6 = 0.67 s
     signal blink_timer : unsigned(24 downto 0) := (others => '0');
+    signal txen_blink  : unsigned(24 downto 0) := (others => '0');
 
     -- AXI-Stream signals to packet_tx
     signal tvalid : std_logic := '0';
@@ -156,47 +157,44 @@ begin
         end if;
     end process;
 
-    -- AXI-S byte driver
-    -- Starts a new send when pkt_timer wraps to 0
+    -- AXI-S byte driver: 2-state FSM with combinational outputs.
+    -- tvalid/tdata/tlast are concurrent assignments derived from drv_state and
+    -- byte_idx, so they cannot drift relative to each other and there is no
+    -- pipeline-skew window where a byte gets duplicated or dropped.
     process(eth_clk, reset_n)
     begin
         if reset_n = '0' then
             drv_state <= IDLE;
             byte_idx  <= 0;
-            tvalid    <= '0';
-            tdata     <= (others => '0');
-            tlast     <= '0';
         elsif rising_edge(eth_clk) then
             case drv_state is
 
                 when IDLE =>
-                    tvalid <= '0';
-                    tlast  <= '0';
+                    byte_idx <= 0;
                     if pkt_timer = 0 then
-                        byte_idx  <= 0;
                         drv_state <= SEND;
                     end if;
 
                 when SEND =>
-                    tvalid <= '1';
-                    tdata  <= PAYLOAD(byte_idx);
-                    tlast  <= '0';
                     if tready = '1' then
                         if byte_idx = 63 then
-                            tvalid    <= '0';
                             drv_state <= IDLE;
+                            byte_idx  <= 0;
                         else
                             byte_idx <= byte_idx + 1;
                         end if;
                     end if;
-                    -- Must come last so it wins over the tready block above
-                    if byte_idx = 63 then
-                        tlast <= '1';
-                    end if;
+
+                when others =>
+                    drv_state <= IDLE;
 
             end case;
         end if;
     end process;
+
+    tvalid <= '1' when drv_state = SEND else '0';
+    tlast  <= '1' when drv_state = SEND and byte_idx = 63 else '0';
+    tdata  <= PAYLOAD(byte_idx);
 
     tx: packet_tx
     port map (
@@ -213,9 +211,23 @@ begin
     ETH_TXD  <= eth_txd_i;
     ETH_TXEN <= eth_txen_i;
 
+    -- TXEN-activity LED: re-loads while TXEN high, decays after
+    process(eth_clk, reset_n)
+    begin
+        if reset_n = '0' then
+            txen_blink <= (others => '0');
+        elsif rising_edge(eth_clk) then
+            if eth_txen_i = '1' then
+                txen_blink <= (others => '1');
+            elsif txen_blink /= 0 then
+                txen_blink <= txen_blink - 1;
+            end if;
+        end if;
+    end process;
 
 
-    -- -- ILA type casts
+
+    -- ILA type casts
     -- ila_eth_txd     <= eth_txd_i;
     -- ila_eth_txen(0) <= eth_txen_i;
 
@@ -239,7 +251,7 @@ begin
     
     
     LED17_G <= '0';
-    LED17_R <= '0';
+    LED17_R <= '1' when txen_blink /= 0 else '0';
 
     LED16_B <= '0';
     LED17_B <= '1' when blink_timer /= 0 else '0';

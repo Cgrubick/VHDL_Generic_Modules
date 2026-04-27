@@ -24,13 +24,13 @@ def main():
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(("0.0.0.0", args.port))
-        print(f"Listening on UDP port {args.port} — waiting for FPGA packets...\n")
+        # print(f"Listening on UDP port {args.port} — waiting for FPGA packets...\n")
         while True:
             data, addr = s.recvfrom(4096)
             ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-            print(f"[{ts}]  from {addr[0]}:{addr[1]}")
-            print(f"  hex : {data.hex()}")
-            print(f"  text: {data.decode(errors='replace')}\n")
+            print(f"[{ts}] from {addr[0]}:{addr[1]}")
+            print(f"  hex ({len(data)} bytes): {data.hex()}")
+            print(f"  text: {data.decode('utf-8', errors='replace')}")
 
 
 if __name__ == "__main__":

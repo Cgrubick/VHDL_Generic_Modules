@@ -58,7 +58,7 @@ architecture rtl of packet_tx is
 	constant ETH_HEADER_BITS        : integer := HEADER_BYTES * 8;  -- 336 bits
 	constant PREAMBLE : std_logic_vector(55 downto 0) := x"55555555555555"; 
 	constant FIFO_WIDTH				: positive := 8;
-	constant FIFO_ADDR				: positive := 5;
+	constant FIFO_ADDR				: positive := 7;
 
 	type eth_states is (IDLE_S, PREAMBLE_S, SFD_S, HEADER_S, DATA_S, FCS_S, WAIT_S);
 	signal current_state      	: eth_states;

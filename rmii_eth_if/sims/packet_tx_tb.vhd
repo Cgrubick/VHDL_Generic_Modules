@@ -87,25 +87,30 @@ begin
 
         constant PAYLOAD_1 : byte_array_t(0 to 3) := (x"DE", x"AD", x"BE", x"EF");
         constant PAYLOAD_2 : byte_array_t(0 to 3) := (x"01", x"02", x"03", x"04");
+        variable PAYLOAD_3 : byte_array_t(0 to 63);
 
     begin
+
+        for i in PAYLOAD_3'range loop                                                                                                
+            PAYLOAD_3(i) := std_logic_vector(to_unsigned(i, 8));                                                                       
+        end loop;    
         reset_n <= '0';
         wait for 5 * CLK_PERIOD;
         wait until rising_edge(clk);
         reset_n <= '1';
         wait for 2 * CLK_PERIOD;
 
-        send_packet(PAYLOAD_1);
+        send_packet(PAYLOAD_3);
         wait until ETH_TXEN = '0';
         wait for 20 * CLK_PERIOD;
 
-        send_packet(PAYLOAD_2);
-        wait until ETH_TXEN = '0';
-        wait for 20 * CLK_PERIOD;
+        -- send_packet(PAYLOAD_2);
+        -- wait until ETH_TXEN = '0';
+        -- wait for 20 * CLK_PERIOD;
 
-        send_packet(PAYLOAD_1);
-        wait until ETH_TXEN = '0';
-        wait for 10 * CLK_PERIOD;
+        -- send_packet(PAYLOAD_1);
+        -- wait until ETH_TXEN = '0';
+        -- wait for 10 * CLK_PERIOD;
 
         report "Stimulus complete" severity note;
         wait;
