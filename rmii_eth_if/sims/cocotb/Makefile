@@ -12,14 +12,14 @@
 #
 # ============================================================
 
-SIM          ?= questa
+SIM          ?= ghdl
 TOPLEVEL_LANG = vhdl
 
 # Source files in dependency order
-VHDL_SOURCES  = $(realpath ../ip_defs_pkg.vhd)
-VHDL_SOURCES += $(realpath ../crc_gen.vhd)
-VHDL_SOURCES += $(realpath ../async_fifo.vhd)
-VHDL_SOURCES += $(realpath ../packet_tx.vhd)
+VHDL_SOURCES  = $(realpath ../../ip_defs_pkg.vhd)
+VHDL_SOURCES += $(realpath ../../crc_gen.vhd)
+VHDL_SOURCES += $(realpath ../../async_fifo.vhd)
+VHDL_SOURCES += $(realpath ../../packet_tx.vhd)
 
 TOPLEVEL = packet_tx
 MODULE   = test_packet_tx
