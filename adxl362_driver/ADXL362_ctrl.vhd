@@ -19,38 +19,61 @@ entity adxl362_ctrl is
     port (
         clk         : in std_logic;
         rst_n       : in std_logic;
+        command     : in std_logic_vector(1 downto 0); -- 00 - Idle, 01 - Read Reg, 10 - Write Reg
+        data_in     : in std_logic_vector(7 downto 0);
         ACL_INT     : in std_logic_vector(1 downto 0);
         ACL_MOSI    : in std_logic;
         ACL_MISO    : out std_logic;
-        ACL_SCLK    : out std_logic;
-        ACL_CSN     : out std_logic
+        ACL_SCLK    : out std_logic; -- idles at a low level for CPHA = CPOL = 0
+        ACL_CSN     : out std_logic;
+        data_out    : out std_logic_vector(7 downto 0)
     );
 end entity adxl362_ctrl;
 
 architecture rtl of adxl362_ctrl is
-    constant adxl362_id : std_logic_vector := x"F2";
+    constant RD_CMD             : std_logic_vector := "10";
+    constant WR_CMD             : std_logic_vector := "01";
+    constant adxl362_id         : std_logic_vector := x"F2";
     -- SPI Commands
-    constant write_reg  : std_logic_vector := x"0A";
-    constant read_reg   : std_logic_vector := x"0B";
-    constant read_fifo  : std_logic_vector := x"0D";
+    constant write_reg          : std_logic_vector := x"0A";
+    constant read_reg           : std_logic_vector := x"0B";
+    constant read_fifo          : std_logic_vector := x"0D";
     -- REGISTER ADDRESSES
-    constant adxl362_id_reg : std_logic_vector := x"01";
-    constant x_axis_reg     : std_logic_vector := x"08";
-    constant y_axis_reg     : std_logic_vector := x"09";
-    constant z_axis_reg     : std_logic_vector := x"0A";
-    constant status_reg     : std_logic_vector := x"0B";
-    constant temp_l         : std_logic_vector := x"14"; -- TEMP L [7:0]
-    constant temp_h         : std_logic_vector := x"15"; -- TEMP H [3:0]
-    constant fifo_ctrl      : std_logic_vector := x"28";
-	type spi_states is (IDLE_S, BIT_WR_S, BIT_RD_S, WR_REG_S, RD_REG_S);
-	signal current_state      	: spi_states;
+    constant adxl362_id_addr    : std_logic_vector := x"01";
+    constant x_axis_addr        : std_logic_vector := x"08";
+    constant y_axis_addr        : std_logic_vector := x"09";
+    constant z_axis_addr        : std_logic_vector := x"0A";
+    constant status_addr        : std_logic_vector := x"0B";
+    constant temp_l_addr        : std_logic_vector := x"14"; -- TEMP L [7:0]
+    constant temp_h_addr        : std_logic_vector := x"15"; -- TEMP H [3:0]
+    constant fifo_ctrl_addr     : std_logic_vector := x"28";
+
+    -- ADXL362 Registers
+    signal status_reg           : std_logic_vector(7 downto 0);
+    alias err_user              : std_logic is status_reg(7); 
+    alias awake                 : std_logic is status_reg(6);   
+    alias inact                 : std_logic is status_reg(5);   
+    alias act                   : std_logic is status_reg(4);   
+    alias fifo_overflow         : std_logic is status_reg(3);   
+    alias fifo_watermark        : std_logic is status_reg(2);     
+    alias fifo_ready            : std_logic is status_reg(1);      
+    alias data_ready            : std_logic is status_reg(0); -- cleared when a fifo read is performed 
+    signal x_reg                : std_logic_vector(7 downto 0);
+    signal y_reg                : std_logic_vector(7 downto 0);
+    signal z_reg                : std_logic_vector(7 downto 0);
+    signal temp_L_reg           : std_logic_vector(7 downto 0);
+    signal temp_H_reg           : std_logic_vector(7 downto 0);
+
+    type spi_states is (IDLE_S, BIT_WR_S, BIT_RD_S, WR_REG_S, RD_REG_S);
+    signal current_state      	: spi_states;
 
     signal bit_done : std_logic;
-    signal rd_reg   : std_logic;
-    signal wr_reg   : std_logic;
+    signal bit_fail : std_logic;
 
+    signal miso_sreg    : std_logic;
+    signal mosi_sreg    : std_logic_vector(7 downto 0);
+    signal data_in_reg  : std_logic_vector(7 downto 0);
 begin
-
 
     -- SPI FSM
     process (clk, rst_n)
@@ -62,22 +85,57 @@ begin
                 when IDLE_S =>
                     if bit_done = '0' then
                         current_state <= BIT_WR_S;
-                    elsif(rd_reg = '1' and wr_reg = '0') then
+                    elsif(command = WR_CMD) then
                         current_state <= RD_REG_S;
-                    elsif(wr_reg = '1' and rd_reg = '0') then
+                    elsif(command = RD_CMD) then
                         current_state <= WR_REG_S;
                     end if;
                 when BIT_WR_S =>
-                    
-                when BIT_S => 
-                
+                    current_state <= WR_REG_S;
+                when BIT_RD_S =>
+                    if (bit_done = '1' and bit_fail = '0') then 
+                        current_state <= IDLE_S;
+                    end if;
+                when WR_REG_S =>
+                    current_state <= RD_REG_S;
+                when RD_REG_S =>
+                    current_state <= IDLE_S;
+
                 when others =>
             
             end case ;
         end if;
     end process;
 
-    -- Output logic
     
+    -- Shift register output for MISO
+    data_in_reg <= data_in;
+    process (clk, rst_n)
+    begin
+        if(rst_n = '0') then
+            miso_sreg <= '0';
+        elsif rising_edge(clk) then
+            if current_state = BIT_WR_S or current_state = WR_REG_S then 
+                miso_sreg <= data_in_reg(7);-- msb shifted out first 
+                data_in_reg <= data_in_reg(6 downto 0) & '0';
+            end if;
+        end if;
+    end process;
 
+    -- Shift register input for MOSI
+    process (clk, rst_n)
+    begin
+        if(rst_n = '0') then
+            mosi_sreg <= (others => '0');
+        elsif rising_edge(clk) then
+            if current_state = BIT_WR_S or current_state = WR_REG_S then 
+                mosi_sreg <= mosi_sreg & ACL_MOSI;-- msb shifted in first 
+            end if;
+        end if;
+    end process;
+    mosi_sreg <= data_out;
+
+    -- Output logic
+    ACL_MISO <= miso_sreg;
+	ACL_CSN <= '1' when current_state = BIT_WR_S or current_state = BIT_RD_S or current_state = WR_REG_S or current_state = RD_REG_S else '0';
 end architecture;
