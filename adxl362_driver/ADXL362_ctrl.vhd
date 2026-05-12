@@ -19,34 +19,36 @@ entity adxl362_ctrl is
     port (
         clk         : in std_logic;
         rst_n       : in std_logic;
-        command     : in std_logic_vector(1 downto 0); -- 00 - Idle, 01 - Read Reg, 10 - Write Reg
-        data_in     : in std_logic_vector(7 downto 0);
+        command     : in std_logic_vector(7 downto 0); -- 00 - Idle, 0A - Write Reg, 0B - Read Reg,  0D - Read FIFO
+        imu_reg     : in std_logic_vector(7 downto 0);
         ACL_INT     : in std_logic_vector(1 downto 0);
-        ACL_MOSI    : in std_logic;
-        ACL_MISO    : out std_logic;
+        ACL_MISO    : in std_logic;
+        ACL_MOSI    : out std_logic;
         ACL_SCLK    : out std_logic; -- idles at a low level for CPHA = CPOL = 0
         ACL_CSN     : out std_logic;
-        data_out    : out std_logic_vector(7 downto 0)
+        data_out    : out std_logic_vector(7 downto 0);
+        pbit_fail   : out std_logic;
+        pbit_done   : out std_logic
     );
 end entity adxl362_ctrl;
 
 architecture rtl of adxl362_ctrl is
-    constant RD_CMD             : std_logic_vector := "10";
-    constant WR_CMD             : std_logic_vector := "01";
-    constant adxl362_id         : std_logic_vector := x"F2";
+    constant RD_CMD             : std_logic_vector(7 downto 0) := x"0B";
+    constant WR_CMD             : std_logic_vector(7 downto 0) := x"0A";
+    constant adxl362_id         : std_logic_vector(7 downto 0) := x"F2";
     -- SPI Commands
-    constant write_reg          : std_logic_vector := x"0A";
-    constant read_reg           : std_logic_vector := x"0B";
-    constant read_fifo          : std_logic_vector := x"0D";
+    constant write_reg          : std_logic_vector(7 downto 0) := x"0A";
+    constant read_reg           : std_logic_vector(7 downto 0) := x"0B";
+    constant read_fifo          : std_logic_vector(7 downto 0) := x"0D";
     -- REGISTER ADDRESSES
-    constant adxl362_id_addr    : std_logic_vector := x"01";
-    constant x_axis_addr        : std_logic_vector := x"08";
-    constant y_axis_addr        : std_logic_vector := x"09";
-    constant z_axis_addr        : std_logic_vector := x"0A";
-    constant status_addr        : std_logic_vector := x"0B";
-    constant temp_l_addr        : std_logic_vector := x"14"; -- TEMP L [7:0]
-    constant temp_h_addr        : std_logic_vector := x"15"; -- TEMP H [3:0]
-    constant fifo_ctrl_addr     : std_logic_vector := x"28";
+    constant adxl362_id_addr    : std_logic_vector(7 downto 0) := x"01";
+    constant x_axis_addr        : std_logic_vector(7 downto 0) := x"08";
+    constant y_axis_addr        : std_logic_vector(7 downto 0) := x"09";
+    constant z_axis_addr        : std_logic_vector(7 downto 0) := x"0A";
+    constant status_addr        : std_logic_vector(7 downto 0) := x"0B";
+    constant temp_l_addr        : std_logic_vector(7 downto 0) := x"14"; -- TEMP L [7:0]
+    constant temp_h_addr        : std_logic_vector(7 downto 0) := x"15"; -- TEMP H [3:0]
+    constant fifo_ctrl_addr     : std_logic_vector(7 downto 0) := x"28";
 
     -- ADXL362 Registers
     signal status_reg           : std_logic_vector(7 downto 0);
@@ -64,16 +66,52 @@ architecture rtl of adxl362_ctrl is
     signal temp_L_reg           : std_logic_vector(7 downto 0);
     signal temp_H_reg           : std_logic_vector(7 downto 0);
 
-    type spi_states is (IDLE_S, BIT_WR_S, BIT_RD_S, WR_REG_S, RD_REG_S);
+    type spi_states is (IDLE_S, BIT_WR_ADDR_S, BIT_WR_INSTR_S, BIT_RD_S, WR_REG_S, RD_REG_S);
     signal current_state      	: spi_states;
 
-    signal bit_done : std_logic;
-    signal bit_fail : std_logic;
+    signal mosi_sreg        : std_logic_vector(7 downto 0);
+    signal miso_sreg        : std_logic_vector(7 downto 0);
+    signal imu_reg_d      : std_logic_vector(7 downto 0);
 
-    signal miso_sreg    : std_logic;
-    signal mosi_sreg    : std_logic_vector(7 downto 0);
-    signal data_in_reg  : std_logic_vector(7 downto 0);
+    signal bit_counter  : unsigned(3 downto 0);
+    alias byte_done     :  std_logic is bit_counter(3);
+
+    signal spi_clk : std_logic;
+    signal spi_clk_counter              : unsigned(4 downto 0);
+    constant spi_clk_pulse    : unsigned := "10100";
 begin
+
+    -- 5MHz clock, runs on falling edge of CS_N
+    process (clk, rst_n)
+    begin
+        if rst_n = '0' then
+            spi_clk <= '0';
+            spi_clk_counter <= (others => '0');
+        elsif rising_edge(clk) then
+            if(ACL_CSN = '0') then 
+                spi_clk_counter <= spi_clk_counter + 1;
+                if(spi_clk_counter = spi_clk_pulse) then -- 100 MHz / 20 = 5MHz
+                    spi_clk <= not spi_clk;
+                    spi_clk_counter <= (others => '0');
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -- bit counter
+    process (spi_clk, rst_n)
+    begin
+        if(rst_n = '0') then 
+            bit_counter <= (others => '0');
+        elsif rising_edge(spi_clk) then
+            if(current_state = BIT_WR_INSTR_S or current_state = BIT_WR_ADDR_S or current_state = WR_REG_S) then 
+                if (byte_done = '1') then 
+                    bit_counter <= (others => '0');
+                end if;
+                bit_counter <= bit_counter + 1;
+            end if;
+        end if;
+    end process;
 
     -- SPI FSM
     process (clk, rst_n)
@@ -83,17 +121,23 @@ begin
         elsif rising_edge(clk) then
             case current_state is
                 when IDLE_S =>
-                    if bit_done = '0' then
-                        current_state <= BIT_WR_S;
+                    if pbit_done = '0' then
+                        current_state <= BIT_WR_INSTR_S;
                     elsif(command = WR_CMD) then
                         current_state <= RD_REG_S;
                     elsif(command = RD_CMD) then
                         current_state <= WR_REG_S;
                     end if;
-                when BIT_WR_S =>
-                    current_state <= WR_REG_S;
+                when BIT_WR_INSTR_S =>
+                    if(byte_done = '1') then 
+                        current_state <= BIT_WR_ADDR_S;
+                    end if;
+                when BIT_WR_ADDR_S =>
+                    if(byte_done = '1') then 
+                        current_state <= BIT_RD_S;
+                    end if;
                 when BIT_RD_S =>
-                    if (bit_done = '1' and bit_fail = '0') then 
+                    if (pbit_done = '1' and pbit_fail = '0') then 
                         current_state <= IDLE_S;
                     end if;
                 when WR_REG_S =>
@@ -107,35 +151,52 @@ begin
         end if;
     end process;
 
-    
-    -- Shift register output for MISO
-    data_in_reg <= data_in;
     process (clk, rst_n)
     begin
         if(rst_n = '0') then
-            miso_sreg <= '0';
+            miso_sreg <= (others => '0');
+            pbit_fail   <= '1';
+            pbit_done   <= '0';
         elsif rising_edge(clk) then
-            if current_state = BIT_WR_S or current_state = WR_REG_S then 
-                miso_sreg <= data_in_reg(7);-- msb shifted out first 
-                data_in_reg <= data_in_reg(6 downto 0) & '0';
+            if current_state = BIT_RD_S  then 
+                miso_sreg <= miso_sreg(7 downto 1) & ACL_MISO; -- msb shifted in first
+                if(byte_done = '1' and pbit_done = '0') then
+                    if(miso_sreg = adxl362_id) then
+                        pbit_done   <= '1';
+                        pbit_fail   <= '0'; 
+                    end if;
+                end if;
+            elsif current_state = RD_REG_S then
+                miso_sreg <= miso_sreg(7 downto 1) & ACL_MISO; -- msb shifted in first
             end if;
         end if;
     end process;
 
-    -- Shift register input for MOSI
     process (clk, rst_n)
     begin
         if(rst_n = '0') then
             mosi_sreg <= (others => '0');
+            imu_reg_d <= (others => '0');
         elsif rising_edge(clk) then
-            if current_state = BIT_WR_S or current_state = WR_REG_S then 
-                mosi_sreg <= mosi_sreg & ACL_MOSI;-- msb shifted in first 
-            end if;
+        
+            -- Shift register input for MOSI
+            case current_state is
+                when IDLE_S         =>  mosi_sreg <= mosi_sreg;
+                when BIT_WR_INSTR_S =>  mosi_sreg <= RD_CMD;
+                when BIT_WR_ADDR_S  =>  mosi_sreg <= adxl362_id_addr;
+                when others => mosi_sreg <= (others => '0');
+            end case;
+
+            mosi_sreg <= mosi_sreg(6 downto 0) & '0';
         end if;
     end process;
-    mosi_sreg <= data_out;
 
     -- Output logic
-    ACL_MISO <= miso_sreg;
-	ACL_CSN <= '1' when current_state = BIT_WR_S or current_state = BIT_RD_S or current_state = WR_REG_S or current_state = RD_REG_S else '0';
+    ACL_MOSI <= mosi_sreg(7);
+	ACL_CSN <= '0' when current_state = BIT_WR_INSTR_S or current_state = BIT_WR_ADDR_S or 
+                        current_state = BIT_RD_S       or current_state = WR_REG_S      or 
+                        current_state = RD_REG_S else '1';
+    ACL_SCLK <= spi_clk;
+    data_out <= miso_sreg;
+
 end architecture;
