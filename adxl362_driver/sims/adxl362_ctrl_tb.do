@@ -21,7 +21,7 @@ add wave -radix bin      /adxl362_ctrl_tb/clk
 add wave -radix bin      /adxl362_ctrl_tb/rst_n
 
 add wave -divider "Top-level Control"
-add wave -radix bin      /adxl362_ctrl_tb/command
+add wave -radix hex      /adxl362_ctrl_tb/command
 add wave -radix hex      /adxl362_ctrl_tb/imu_reg
 add wave -radix hex      /adxl362_ctrl_tb/data_out
 add wave -radix bin      /adxl362_ctrl_tb/DUT/pbit_done

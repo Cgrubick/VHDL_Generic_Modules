@@ -77,9 +77,13 @@ architecture rtl of adxl362_ctrl is
     alias byte_done     :  std_logic is bit_counter(3);
 
     signal spi_clk : std_logic;
+    signal spi_clk_d : std_logic;
     signal spi_clk_counter              : unsigned(4 downto 0);
+    signal sclk_rise    : std_logic;  
+    signal sclk_fall    : std_logic;  
     constant spi_clk_pulse    : unsigned := "10100";
 begin
+
 
     -- 5MHz clock, runs on falling edge of CS_N
     process (clk, rst_n)
@@ -88,6 +92,10 @@ begin
             spi_clk <= '0';
             spi_clk_counter <= (others => '0');
         elsif rising_edge(clk) then
+            spi_clk_d <= spi_clk;
+            sclk_rise <= (not spi_clk_d) and spi_clk;
+            sclk_fall <= spi_clk_d and (not spi_clk);
+
             if(ACL_CSN = '0') then 
                 spi_clk_counter <= spi_clk_counter + 1;
                 if(spi_clk_counter = spi_clk_pulse) then -- 100 MHz / 20 = 5MHz
@@ -99,16 +107,19 @@ begin
     end process;
 
     -- bit counter
-    process (spi_clk, rst_n)
+    process (clk, rst_n)
     begin
         if(rst_n = '0') then 
-            bit_counter <= (others => '0');
-        elsif rising_edge(spi_clk) then
-            if(current_state = BIT_WR_INSTR_S or current_state = BIT_WR_ADDR_S or current_state = WR_REG_S) then 
+            bit_counter <= "0001";
+        elsif rising_edge(clk) then
+            if current_state = IDLE_S then
+              bit_counter <= "0001";
+            elsif(sclk_rise = '1') then 
                 if (byte_done = '1') then 
-                    bit_counter <= (others => '0');
+                    bit_counter <= "0001";
+                else
+                    bit_counter <= bit_counter + 1;
                 end if;
-                bit_counter <= bit_counter + 1;
             end if;
         end if;
     end process;
@@ -129,15 +140,15 @@ begin
                         current_state <= WR_REG_S;
                     end if;
                 when BIT_WR_INSTR_S =>
-                    if(byte_done = '1') then 
+                    if(byte_done = '1' and sclk_rise = '1') then 
                         current_state <= BIT_WR_ADDR_S;
                     end if;
                 when BIT_WR_ADDR_S =>
-                    if(byte_done = '1') then 
+                    if(byte_done = '1' and sclk_rise = '1') then 
                         current_state <= BIT_RD_S;
                     end if;
                 when BIT_RD_S =>
-                    if (pbit_done = '1' and pbit_fail = '0') then 
+                    if (pbit_done = '1' and sclk_rise = '1') then 
                         current_state <= IDLE_S;
                     end if;
                 when WR_REG_S =>
@@ -159,15 +170,20 @@ begin
             pbit_done   <= '0';
         elsif rising_edge(clk) then
             if current_state = BIT_RD_S  then 
-                miso_sreg <= miso_sreg(7 downto 1) & ACL_MISO; -- msb shifted in first
-                if(byte_done = '1' and pbit_done = '0') then
-                    if(miso_sreg = adxl362_id) then
-                        pbit_done   <= '1';
-                        pbit_fail   <= '0'; 
+                if sclk_rise = '1' then 
+                    miso_sreg <= miso_sreg(6 downto 0) & ACL_MISO; -- msb shifted in first
+                    if(byte_done = '1' and pbit_done = '0') then
+                            pbit_done   <= '1';
+                        if(miso_sreg = adxl362_id) then
+                            pbit_fail   <= '0'; 
+                        end if;
+                        
                     end if;
                 end if;
             elsif current_state = RD_REG_S then
-                miso_sreg <= miso_sreg(7 downto 1) & ACL_MISO; -- msb shifted in first
+                if sclk_rise = '1' then 
+                    miso_sreg <= miso_sreg(6 downto 0) & ACL_MISO; -- msb shifted in first
+                end if;
             end if;
         end if;
     end process;
@@ -178,16 +194,33 @@ begin
             mosi_sreg <= (others => '0');
             imu_reg_d <= (others => '0');
         elsif rising_edge(clk) then
-        
             -- Shift register input for MOSI
             case current_state is
-                when IDLE_S         =>  mosi_sreg <= mosi_sreg;
-                when BIT_WR_INSTR_S =>  mosi_sreg <= RD_CMD;
-                when BIT_WR_ADDR_S  =>  mosi_sreg <= adxl362_id_addr;
-                when others => mosi_sreg <= (others => '0');
+                when IDLE_S         => 
+                    if(pbit_done = '0') then 
+                        mosi_sreg <= RD_CMD;
+                    else
+                        mosi_sreg <= (others => '0');
+                    end if;
+                when BIT_WR_INSTR_S =>  
+                    if(spi_clk_d = '1' and spi_clk = '0') then    
+                        if(byte_done = '1') then 
+                            mosi_sreg <= adxl362_id_addr;
+                        else
+                            mosi_sreg <= mosi_sreg(6 downto 0) & '0';
+                        end if;
+                    end if;
+                when BIT_WR_ADDR_S  =>  
+                    if(spi_clk_d = '1' and spi_clk = '0') then    
+                        if(byte_done = '1') then 
+                            mosi_sreg <= (others => '0');
+                        else
+                            mosi_sreg <= mosi_sreg(6 downto 0) & '0';
+                        end if;
+                    end if;
+                when others =>
             end case;
 
-            mosi_sreg <= mosi_sreg(6 downto 0) & '0';
         end if;
     end process;
 

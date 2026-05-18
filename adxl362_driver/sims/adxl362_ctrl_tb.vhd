@@ -49,13 +49,16 @@ architecture sim of adxl362_ctrl_tb is
             wait until rising_edge(sclk);
             cmd(i) := mosi;
         end loop;
+        report "TB: received CMD  = 0x" & to_hstring(cmd) severity note;
 
         for i in 7 downto 0 loop
             wait until rising_edge(sclk);
             addr(i) := mosi;
         end loop;
+        report "TB: received ADDR = 0x" & to_hstring(addr) severity note;
 
         if cmd /= read_reg_cmd then
+            report "TB: CMD is not a read (expected 0x0B), skipping MISO drive" severity warning;
             return;
         end if;
 
