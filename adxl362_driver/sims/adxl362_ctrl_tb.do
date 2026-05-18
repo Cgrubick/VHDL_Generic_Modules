@@ -36,6 +36,7 @@ add wave -radix bin      /adxl362_ctrl_tb/ACL_INT
 
 add wave -divider "FSM"
 add wave -radix ascii    /adxl362_ctrl_tb/DUT/current_state
+add wave -radix ascii    /adxl362_ctrl_tb/DUT/prev_state
 
 add wave -divider "SPI Clock Divider"
 add wave -radix bin      /adxl362_ctrl_tb/DUT/spi_clk

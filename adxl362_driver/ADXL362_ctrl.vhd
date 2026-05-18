@@ -68,9 +68,11 @@ architecture rtl of adxl362_ctrl is
 
     type spi_states is (IDLE_S, BIT_WR_ADDR_S, BIT_WR_INSTR_S, BIT_RD_S, WR_REG_S, RD_REG_S);
     signal current_state      	: spi_states;
+    signal prev_state           : spi_states;
 
     signal mosi_sreg        : std_logic_vector(7 downto 0);
     signal miso_sreg        : std_logic_vector(7 downto 0);
+    signal miso_next : std_logic_vector(7 downto 0);
     signal imu_reg_d      : std_logic_vector(7 downto 0);
 
     signal bit_counter  : unsigned(3 downto 0);
@@ -162,21 +164,22 @@ begin
         end if;
     end process;
 
+
     process (clk, rst_n)
     begin
         if(rst_n = '0') then
-            miso_sreg <= (others => '0');
             pbit_fail   <= '1';
             pbit_done   <= '0';
         elsif rising_edge(clk) then
             if current_state = BIT_RD_S  then 
                 if sclk_rise = '1' then 
-                    miso_sreg <= miso_sreg(6 downto 0) & ACL_MISO; -- msb shifted in first
+                    miso_sreg <= miso_next;
+                    if(miso_next = adxl362_id) then
+                            pbit_fail   <= '0'; 
+                    end if;
                     if(byte_done = '1' and pbit_done = '0') then
                             pbit_done   <= '1';
-                        if(miso_sreg = adxl362_id) then
-                            pbit_fail   <= '0'; 
-                        end if;
+                        
                         
                     end if;
                 end if;
@@ -184,6 +187,8 @@ begin
                 if sclk_rise = '1' then 
                     miso_sreg <= miso_sreg(6 downto 0) & ACL_MISO; -- msb shifted in first
                 end if;
+            elsif current_state = IDLE_S then
+                miso_sreg <= (others => '0');
             end if;
         end if;
     end process;
@@ -195,35 +200,23 @@ begin
             imu_reg_d <= (others => '0');
         elsif rising_edge(clk) then
             -- Shift register input for MOSI
-            case current_state is
-                when IDLE_S         => 
-                    if(pbit_done = '0') then 
-                        mosi_sreg <= RD_CMD;
-                    else
-                        mosi_sreg <= (others => '0');
-                    end if;
-                when BIT_WR_INSTR_S =>  
-                    if(spi_clk_d = '1' and spi_clk = '0') then    
-                        if(byte_done = '1') then 
-                            mosi_sreg <= adxl362_id_addr;
-                        else
-                            mosi_sreg <= mosi_sreg(6 downto 0) & '0';
-                        end if;
-                    end if;
-                when BIT_WR_ADDR_S  =>  
-                    if(spi_clk_d = '1' and spi_clk = '0') then    
-                        if(byte_done = '1') then 
-                            mosi_sreg <= (others => '0');
-                        else
-                            mosi_sreg <= mosi_sreg(6 downto 0) & '0';
-                        end if;
-                    end if;
-                when others =>
-            end case;
+            prev_state <= current_state;
+            if current_state /= prev_state then
+                case current_state is
+                    when BIT_WR_INSTR_S => mosi_sreg <= RD_CMD;
+                    when BIT_WR_ADDR_S  => mosi_sreg <= adxl362_id_addr;
+                    when others         => 
+                end case;
+            elsif spi_clk_d = '1' and spi_clk = '0' then  -- falling edge
+                if (current_state = BIT_WR_INSTR_S or current_state = BIT_WR_ADDR_S) and bit_counter /= 1 then
+                    mosi_sreg <= mosi_sreg(6 downto 0) & '0';
+                end if;
+            end if;
 
         end if;
     end process;
 
+ miso_next <= miso_sreg(6 downto 0) & ACL_MISO;    
     -- Output logic
     ACL_MOSI <= mosi_sreg(7);
 	ACL_CSN <= '0' when current_state = BIT_WR_INSTR_S or current_state = BIT_WR_ADDR_S or 
