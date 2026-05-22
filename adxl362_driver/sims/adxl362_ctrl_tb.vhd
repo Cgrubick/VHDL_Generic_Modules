@@ -20,7 +20,7 @@ architecture sim of adxl362_ctrl_tb is
     signal ACL_CSN  : std_logic;
     signal data_out : std_logic_vector(7 downto 0);
     -- ADXL362 register address map (for the slave model)
-    constant adxl362_id_addr : std_logic_vector(7 downto 0) := x"01";
+    constant adxl362_id_addr : std_logic_vector(7 downto 0) := x"02"; -- PARTID register, reads back 0xF2
     constant adxl362_id      : std_logic_vector(7 downto 0) := x"F2";
     constant status_addr     : std_logic_vector(7 downto 0) := x"0B";
     constant status_val      : std_logic_vector(7 downto 0) := x"40"; -- awake

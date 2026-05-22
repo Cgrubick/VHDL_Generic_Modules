@@ -41,7 +41,7 @@ architecture rtl of adxl362_ctrl is
     constant read_reg           : std_logic_vector(7 downto 0) := x"0B";
     constant read_fifo          : std_logic_vector(7 downto 0) := x"0D";
     -- REGISTER ADDRESSES
-    constant adxl362_id_addr    : std_logic_vector(7 downto 0) := x"01";
+    constant adxl362_id_addr    : std_logic_vector(7 downto 0) := x"02"; -- PARTID register, reads back 0xF2
     constant x_axis_addr        : std_logic_vector(7 downto 0) := x"08";
     constant y_axis_addr        : std_logic_vector(7 downto 0) := x"09";
     constant z_axis_addr        : std_logic_vector(7 downto 0) := x"0A";
@@ -84,8 +84,30 @@ architecture rtl of adxl362_ctrl is
     signal sclk_rise    : std_logic;  
     signal sclk_fall    : std_logic;  
     constant spi_clk_pulse    : unsigned := "10100";
+
+
+    
+    signal sec_wait           : unsigned(31 downto 0);
+    signal sec_done           : std_logic;
+
 begin
 
+
+    process (clk, rst_n)
+    begin
+        if rst_n = '0' then
+            sec_wait <= (others => '0');
+            sec_done <= '0';
+        elsif rising_edge(clk) then
+            if sec_done = '0' then 
+                if(sec_wait = x"FFFFFFFF") then 
+                    sec_done <= '1';
+                else
+                    sec_wait <= sec_wait + 1;
+                end if;
+            end if;
+        end if;
+    end process;
 
     -- 5MHz clock, runs on falling edge of CS_N
     process (clk, rst_n)
@@ -134,7 +156,7 @@ begin
         elsif rising_edge(clk) then
             case current_state is
                 when IDLE_S =>
-                    if pbit_done = '0' then
+                    if pbit_done = '0' and sec_done = '1' then
                         current_state <= BIT_WR_INSTR_S;
                     elsif(command = WR_CMD) then
                         current_state <= RD_REG_S;
