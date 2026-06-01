@@ -1,4 +1,4 @@
--- ##Accelerometer - Constraints
+--  Accelerometer - Constraints
 --  ACL_MISO
 --  ACL_MOSI
 --  ACL_SCLK
@@ -6,11 +6,37 @@
 --  ACL_INT[1] 
 --  ACL_INT[2] 
 
--- Targets the nexys a7 digilent board
--- For the adxl362 the part ID is = 0xF2, im using this as a BIT at the start of POR, 
--- This will confirm I have comms with the device before I read any other registers for IMU data
+--  Targets the nexys a7 digilent board
+--  For the adxl362 the part ID is = 0xF2, im using this as a BIT at the start of POR, 
+--  This will confirm I have comms with the device before I read any other registers for IMU data
 
--- The SPI bus timing follows CPHA = CPOL = 0 per the datasheet, spi clk is 5 MHz
+--  The SPI bus timing follows CPHA = CPOL = 0 per the datasheet, spi clk is 5 MHz
+
+--  The steps of opeartion is as follows:
+--  After PBIT passes:
+--  1. Write FIFO_SAMPLES (0x29)
+--  2. Write 0x0A to FIFO_CONTROL (0x28) — turns on the temp reading and stream mode
+--  3. Write INTMAP1 (0x2A) — routes watermark to INT1
+--  4. Write POWER_CTL (0x2D) to set MEASUREMENT mode (0x02 for full-bandwidth measurement)
+--  5. Go to a "wait for INT1" idle state
+--  6. On INT1 rising → SPI burst read with 0x0D, capture N×2 bytes, demux by tag (bits 15 and 14), return to step 5
+
+
+-- ################################
+-- FIFO NOTES 
+-- ################################
+-- When reading data, the least significant byte (Bits[B7:B0]) is
+-- read first, followed by the most significant byte (Bits[B15:B8]).
+-- Bits[B11:B0] represent the 12-bit, twos complement acceleration
+-- or temperature data. Bits[B13:B12] are sign extension bits, and
+-- Bits[B15:B14] indicate the type of data, as listed in Table 20
+-- As each sample set is acquired, it is written into the FIFO in the
+-- following order:
+-- ► X-axis
+-- ► Y-axis
+-- ► Z-axis
+-- ► Temperature (optional)
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -21,20 +47,23 @@ entity adxl362_ctrl is
         rst_n       : in std_logic;
         command     : in std_logic_vector(7 downto 0); -- 00 - Idle, 0A - Write Reg, 0B - Read Reg,  0D - Read FIFO
         imu_reg     : in std_logic_vector(7 downto 0);
-        ACL_INT     : in std_logic_vector(1 downto 0);
+        ACL_INT     : in std_logic_vector(1 downto 0); -- INT 1 will be used for FIFO ready
         ACL_MISO    : in std_logic;
         ACL_MOSI    : out std_logic;
         ACL_SCLK    : out std_logic; -- idles at a low level for CPHA = CPOL = 0
         ACL_CSN     : out std_logic;
-        data_out    : out std_logic_vector(7 downto 0);
+        x_vel       : out std_logic_vector(15 downto 0);     
+        y_vel       : out std_logic_vector(15 downto 0);     
+        z_vel       : out std_logic_vector(15 downto 0);     
+        temp        : out std_logic_vector(15 downto 0);
         pbit_fail   : out std_logic;
         pbit_done   : out std_logic
     );
 end entity adxl362_ctrl;
 
 architecture rtl of adxl362_ctrl is
-    constant RD_CMD             : std_logic_vector(7 downto 0) := x"0B";
-    constant WR_CMD             : std_logic_vector(7 downto 0) := x"0A";
+    constant RD_REG_CMD         : std_logic_vector(7 downto 0) := x"0B";
+    constant WR_REG_CMD         : std_logic_vector(7 downto 0) := x"0A";
     constant adxl362_id         : std_logic_vector(7 downto 0) := x"F2";
     -- SPI Commands
     constant write_reg          : std_logic_vector(7 downto 0) := x"0A";
@@ -63,10 +92,10 @@ architecture rtl of adxl362_ctrl is
     signal x_reg                : std_logic_vector(7 downto 0);
     signal y_reg                : std_logic_vector(7 downto 0);
     signal z_reg                : std_logic_vector(7 downto 0);
-    signal temp_L_reg           : std_logic_vector(7 downto 0);
-    signal temp_H_reg           : std_logic_vector(7 downto 0);
+    signal temp_L_reg           : std_logic_vector(3 downto 0);
+    signal temp_H_reg           : std_logic_vector(3 downto 0);
 
-    type spi_states is (IDLE_S, BIT_WR_ADDR_S, BIT_WR_INSTR_S, BIT_RD_S, WR_REG_S, RD_REG_S);
+    type spi_states is (IDLE_S, BIT_WR_ADDR_S, BIT_WR_INSTR_S, BIT_RD_S, WR_REG_S, RD_REG_S, RD_FIFO_CMD_S, DRAIN_FIFO_S);
     signal current_state      	: spi_states;
     signal prev_state           : spi_states;
 
@@ -78,6 +107,11 @@ architecture rtl of adxl362_ctrl is
     signal bit_counter  : unsigned(3 downto 0);
     alias byte_done     :  std_logic is bit_counter(3);
 
+    signal fifo_byte_count : unsigned(3 downto 0);
+    alias fifo_read_done     :  std_logic is fifo_byte_count(3);
+
+    signal fifo_buffer  : std_logic_vector(15 downto 0);
+
     signal spi_clk : std_logic;
     signal spi_clk_d : std_logic;
     signal spi_clk_counter              : unsigned(4 downto 0);
@@ -86,28 +120,7 @@ architecture rtl of adxl362_ctrl is
     constant spi_clk_pulse    : unsigned := "10100";
 
 
-    
-    signal sec_wait           : unsigned(31 downto 0);
-    signal sec_done           : std_logic;
-
 begin
-
-
-    process (clk, rst_n)
-    begin
-        if rst_n = '0' then
-            sec_wait <= (others => '0');
-            sec_done <= '0';
-        elsif rising_edge(clk) then
-            if sec_done = '0' then 
-                if(sec_wait = x"FFFFFFFF") then 
-                    sec_done <= '1';
-                else
-                    sec_wait <= sec_wait + 1;
-                end if;
-            end if;
-        end if;
-    end process;
 
     -- 5MHz clock, runs on falling edge of CS_N
     process (clk, rst_n)
@@ -148,6 +161,24 @@ begin
         end if;
     end process;
 
+    -- FIFO Byte counter (2 bytes x 4 values) 8 bytes total for x, y, z and temp vals
+    process (clk, rst_n)
+    begin
+        if(rst_n = '0') then 
+            fifo_byte_count <= "0000";
+        elsif rising_edge(clk) then
+            if current_state = IDLE_S then
+              fifo_byte_count <= "00";
+            elsif(byte_done = '1' AND current_state = DRAIN_FIFO_S) then 
+                if (fifo_read_done = '1') then 
+                    fifo_byte_count <= "00";
+                else
+                    fifo_byte_count <= fifo_byte_count + 1;
+                end if;
+            end if;
+        end if;
+    end process;
+
     -- SPI FSM
     process (clk, rst_n)
     begin
@@ -156,11 +187,11 @@ begin
         elsif rising_edge(clk) then
             case current_state is
                 when IDLE_S =>
-                    if pbit_done = '0' and sec_done = '1' then
+                    if pbit_done = '0' then
                         current_state <= BIT_WR_INSTR_S;
-                    elsif(command = WR_CMD) then
+                    elsif(command = WR_REG_CMD) then
                         current_state <= RD_REG_S;
-                    elsif(command = RD_CMD) then
+                    elsif(command = RD_REG_CMD) then
                         current_state <= WR_REG_S;
                     end if;
                 when BIT_WR_INSTR_S =>
@@ -180,13 +211,26 @@ begin
                 when RD_REG_S =>
                     current_state <= IDLE_S;
 
+                when RD_FIFO_CMD_S =>
+                    -- A FIFO RD command will output 2 bytes for the X value, Y value, Z value and Temp Value (2 * 4)
+                    -- 8 total bytes will be processed in this state before it returns to idle
+                    -- This will use 2 counters, one to count 
+                    if (pbit_done = '1' and sclk_rise = '1') then 
+                        current_state <= DRAIN_FIFO_S;
+                    end if;
+                
+                when DRAIN_FIFO_S =>
+                    if (pbit_done = '1' and sclk_rise = '1') then 
+                        current_state <= DRAIN_FIFO_S;
+                    end if;
+                
                 when others =>
             
             end case ;
         end if;
     end process;
 
-
+    -- MISO Shift in
     process (clk, rst_n)
     begin
         if(rst_n = '0') then
@@ -215,6 +259,7 @@ begin
         end if;
     end process;
 
+    -- MOSI Shift out
     process (clk, rst_n)
     begin
         if(rst_n = '0') then
@@ -225,7 +270,7 @@ begin
             prev_state <= current_state;
             if current_state /= prev_state then
                 case current_state is
-                    when BIT_WR_INSTR_S => mosi_sreg <= RD_CMD;
+                    when BIT_WR_INSTR_S => mosi_sreg <= RD_REG_CMD;
                     when BIT_WR_ADDR_S  => mosi_sreg <= adxl362_id_addr;
                     when others         => 
                 end case;
@@ -238,13 +283,12 @@ begin
         end if;
     end process;
 
- miso_next <= miso_sreg(6 downto 0) & ACL_MISO;    
+    miso_next <= miso_sreg(6 downto 0) & ACL_MISO;    
     -- Output logic
     ACL_MOSI <= mosi_sreg(7);
 	ACL_CSN <= '0' when current_state = BIT_WR_INSTR_S or current_state = BIT_WR_ADDR_S or 
                         current_state = BIT_RD_S       or current_state = WR_REG_S      or 
                         current_state = RD_REG_S else '1';
     ACL_SCLK <= spi_clk;
-    data_out <= miso_sreg;
 
 end architecture;
