@@ -10,11 +10,11 @@ z2
 cModel Technology
 Z0 dE:/Projects/FPGAs/VHDL_Modules/adxl362_driver/sims
 Eadxl362_ctrl
-Z1 w1781657557
+Z1 w1781658395
 Z2 DPx4 ieee 11 numeric_std 0 22 aU^R8eGcicLcUFIaBQSL>3
 Z3 DPx3 std 6 textio 0 22 zE1`LPoLg^DX3Oz^4Fj1K3
 Z4 DPx4 ieee 14 std_logic_1164 0 22 cVAk:aDinOX8^VGI1ekP<3
-!i122 199
+!i122 201
 R0
 Z5 8../ADXL362_ctrl.vhd
 Z6 F../ADXL362_ctrl.vhd
@@ -24,9 +24,9 @@ VKGDUFCe@OD16SJY^:5m<>2
 !s100 >bVF^:_e>_5MV8nENbgK?3
 Z7 OW;C;2024.3;79
 33
-Z8 !s110 1781657609
+Z8 !s110 1781658400
 !i10b 1
-Z9 !s108 1781657609.000000
+Z9 !s108 1781658400.000000
 Z10 !s90 -reportprogress|300|-2008|../ADXL362_ctrl.vhd|
 Z11 !s107 ../ADXL362_ctrl.vhd|
 !i113 1
@@ -37,11 +37,11 @@ R2
 R3
 R4
 Z14 DEx4 work 12 adxl362_ctrl 0 22 KGDUFCe@OD16SJY^:5m<>2
-!i122 199
-l143
-L65 367
-Vf]c:Ob?^dJkjF`KVaaGBi1
-!s100 Y5^7WUbQ<V:Ve5ESFz5i@3
+!i122 201
+l142
+L65 392
+VK:Boc`?_137UHUBiOb=I@0
+!s100 <EJYk6XRV^50>V^m[8z6O2
 R7
 33
 R8
@@ -57,7 +57,7 @@ Z15 w1781657606
 R2
 R3
 R4
-!i122 200
+!i122 202
 R0
 Z16 8adxl362_ctrl_tb.vhd
 Z17 Fadxl362_ctrl_tb.vhd
@@ -67,9 +67,9 @@ VoXH8hRh:STZJYi9=C2_>I3
 !s100 QYmid[[ci4c7X0698emi93
 R7
 33
-Z18 !s110 1781657610
+Z18 !s110 1781658401
 !i10b 1
-Z19 !s108 1781657610.000000
+Z19 !s108 1781658401.000000
 Z20 !s90 -reportprogress|300|-2008|adxl362_ctrl_tb.vhd|
 Z21 !s107 adxl362_ctrl_tb.vhd|
 !i113 1
@@ -81,11 +81,11 @@ R2
 R3
 R4
 Z22 DEx4 work 15 adxl362_ctrl_tb 0 22 oXH8hRh:STZJYi9=C2_>I3
-!i122 200
+!i122 202
 l91
-L8 144
-VWDJnScjnnk2I?4Yljid232
-!s100 2BEXbRXiY85:bhKX2`]n32
+Z23 L8 144
+Z24 VWDJnScjnnk2I?4Yljid232
+Z25 !s100 2BEXbRXiY85:bhKX2`]n32
 R7
 33
 R18

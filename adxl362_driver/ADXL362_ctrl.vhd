@@ -202,7 +202,7 @@ begin
         elsif rising_edge(clk) then
             if current_state = IDLE_S then
               fifo_byte_count <= "0000";
-            elsif(byte_done = '1' AND current_state = DRAIN_FIFO_S) then 
+            elsif(byte_done = '1' AND current_state = DRAIN_FIFO_S and sclk_rise = '1') then 
                 if (fifo_read_done = '1') then 
                     fifo_byte_count <= "0000";
                 else
@@ -323,7 +323,7 @@ begin
                 when DRAIN_FIFO_S =>
                     if (byte_done = '1' and sclk_rise = '1') then 
                         spi_mosi_en     <= '0';
-                        if(fifo_byte_count = "1000") then 
+                        if(fifo_byte_count = "0111") then 
                             current_state   <= IDLE_S;
                         end if;
                     end if;
@@ -409,10 +409,10 @@ begin
     begin
         if rst_n = '0' then
             data_valid  <= '0';
-            x_reg          <= (others => '0');
-            y_reg          <= (others => '0');
-            z_reg          <= (others => '0');
-            temp_reg       <= (others => '0');
+            x_reg       <= (others => '0');
+            y_reg       <= (others => '0');
+            z_reg       <= (others => '0');
+            temp_reg    <= (others => '0');
         elsif rising_edge(clk) then
             if current_state = DRAIN_FIFO_S and sclk_rise = '1' and byte_done = '1' then 
                 if fifo_byte_count(0) = '0' then
@@ -427,25 +427,30 @@ begin
                             data_valid  <= '1';   -- pulse on the last latch
                     end case;
               end if;
+            else
+                data_valid  <= '0';   -- pulse on the last latch
             end if;
         end if;
     end process;
 
-    miso_next <= miso_sreg(6 downto 0) & ACL_MISO;    
+    miso_next   <= miso_sreg(6 downto 0) & ACL_MISO;
+
+    -----------------------
     -- Output logic
-    ACL_MOSI <= mosi_sreg(7);
-	ACL_CSN <= '0' when current_state = BIT_WR_INSTR_S    or current_state = BIT_WR_ADDR_S    or
-                        current_state = BIT_RD_S          or current_state = WR_REG_S         or
-                        current_state = RD_REG_S          or
-                        current_state = CONFIG_FIFO_CMD_S or current_state = CONFIG_FIFO_ADDR_S or current_state = CONFIG_FIFO_DATA_S or
-                        current_state = INTMAP1_CMD_S     or current_state = INTMAP1_ADDR_S     or current_state = INTMAP1_DATA_S     or
-                        current_state = POWER_CTRL_CMD_S  or current_state = POWER_CTRL_ADDR_S  or current_state = POWER_CTRL_DATA_S  or 
-                        current_state = RD_FIFO_CMD_S     or current_state = DRAIN_FIFO_S
-                        else '1';
-    ACL_SCLK <= spi_clk;
-    x_vel <= x_reg;   
-    y_vel <= y_reg;   
-    z_vel <= z_reg;   
-    temp <= temp_reg;
+    -----------------------
+    ACL_MOSI    <= mosi_sreg(7);
+	ACL_CSN     <= '0' when current_state = BIT_WR_INSTR_S    or current_state = BIT_WR_ADDR_S    or
+                            current_state = BIT_RD_S          or current_state = WR_REG_S         or
+                            current_state = RD_REG_S          or
+                            current_state = CONFIG_FIFO_CMD_S or current_state = CONFIG_FIFO_ADDR_S or current_state = CONFIG_FIFO_DATA_S or
+                            current_state = INTMAP1_CMD_S     or current_state = INTMAP1_ADDR_S     or current_state = INTMAP1_DATA_S     or
+                            current_state = POWER_CTRL_CMD_S  or current_state = POWER_CTRL_ADDR_S  or current_state = POWER_CTRL_DATA_S  or 
+                            current_state = RD_FIFO_CMD_S     or current_state = DRAIN_FIFO_S
+                            else '1';
+    ACL_SCLK    <= spi_clk;
+    x_vel       <= x_reg;   
+    y_vel       <= y_reg;   
+    z_vel       <= z_reg;   
+    temp        <= temp_reg;
 
 end architecture;
