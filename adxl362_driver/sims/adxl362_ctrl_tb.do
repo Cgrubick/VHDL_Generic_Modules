@@ -23,9 +23,12 @@ add wave -radix bin      /adxl362_ctrl_tb/rst_n
 add wave -divider "Top-level Control"
 add wave -radix hex      /adxl362_ctrl_tb/command
 add wave -radix hex      /adxl362_ctrl_tb/imu_reg
-add wave -radix hex      /adxl362_ctrl_tb/data_out
-add wave -radix bin      /adxl362_ctrl_tb/DUT/pbit_done
-add wave -radix bin      /adxl362_ctrl_tb/DUT/pbit_fail
+add wave -radix hex      /adxl362_ctrl_tb/x_vel
+add wave -radix hex      /adxl362_ctrl_tb/y_vel
+add wave -radix hex      /adxl362_ctrl_tb/z_vel
+add wave -radix hex      /adxl362_ctrl_tb/temp
+add wave -radix bin      /adxl362_ctrl_tb/pbit_done
+add wave -radix bin      /adxl362_ctrl_tb/pbit_fail
 
 add wave -divider "SPI Bus (pins)"
 add wave -radix bin      /adxl362_ctrl_tb/ACL_CSN
