@@ -56,6 +56,7 @@ entity adxl362_ctrl is
         y_vel       : out std_logic_vector(15 downto 0);     
         z_vel       : out std_logic_vector(15 downto 0);     
         temp        : out std_logic_vector(15 downto 0);
+        data_valid  : out std_logic;
         pbit_fail   : out std_logic;
         pbit_done   : out std_logic
     );
@@ -64,6 +65,7 @@ end entity adxl362_ctrl;
 architecture rtl of adxl362_ctrl is
     constant RD_REG_CMD         : std_logic_vector(7 downto 0) := x"0B";
     constant WR_REG_CMD         : std_logic_vector(7 downto 0) := x"0A";
+    constant RD_FIFO_CMD        : std_logic_vector(7 downto 0) := x"0D";
     constant adxl362_id         : std_logic_vector(7 downto 0) := x"F2";
     -- SPI Commands
     constant write_reg          : std_logic_vector(7 downto 0) := x"0A";
@@ -94,11 +96,10 @@ architecture rtl of adxl362_ctrl is
     alias fifo_watermark        : std_logic is status_reg(2);     
     alias fifo_ready            : std_logic is status_reg(1);      
     alias data_ready            : std_logic is status_reg(0); -- cleared when a fifo read is performed 
-    signal x_reg                : std_logic_vector(7 downto 0);
-    signal y_reg                : std_logic_vector(7 downto 0);
-    signal z_reg                : std_logic_vector(7 downto 0);
-    signal temp_L_reg           : std_logic_vector(3 downto 0);
-    signal temp_H_reg           : std_logic_vector(3 downto 0);
+    signal x_reg                : std_logic_vector(15 downto 0);
+    signal y_reg                : std_logic_vector(15 downto 0);
+    signal z_reg                : std_logic_vector(15 downto 0);
+    signal temp_reg             : std_logic_vector(15 downto 0);
 
     type spi_states is (IDLE_S, BIT_WR_ADDR_S, BIT_WR_INSTR_S, BIT_RD_S, WR_REG_S, RD_REG_S,
                         CONFIG_FIFO_CMD_S, CONFIG_FIFO_ADDR_S, CONFIG_FIFO_DATA_S,
@@ -225,11 +226,12 @@ begin
                     if pbit_done = '0' then
                         current_state   <= BIT_WR_INSTR_S;
                         spi_mosi_en     <= '1';
-                    elsif(pbit_done = '1' and imu_cfg_done = '0') then
+                    elsif(pbit_done = '1' and pbit_fail = '0' and imu_cfg_done = '0') then
                         current_state   <= CONFIG_FIFO_CMD_S;
                         spi_mosi_en     <= '1';
-                    -- elsif(command = RD_REG_CMD) then
-                    --     current_state <= WR_REG_S;
+                    elsif(ACL_INT(0) = '1' and imu_cfg_done = '1') then
+                        current_state <= RD_FIFO_CMD_S;
+                        spi_mosi_en     <= '1';
                     end if;
                 when BIT_WR_INSTR_S =>
                     if(byte_done = '1' and sclk_rise = '1') then 
@@ -313,15 +315,17 @@ begin
                     -- A FIFO RD command will output 2 bytes for the X value, Y value, Z value and Temp Value (2 * 4)
                     -- 8 total bytes will be processed in this state before it returns to idle
                     -- This will use 2 counters, one to count 
-                    if (pbit_done = '1' and sclk_rise = '1') then 
-                        spi_mosi_en     <= '0';
+                    if (byte_done = '1' and sclk_rise = '1') then 
+                        spi_mosi_en     <= '0'; 
                         current_state   <= DRAIN_FIFO_S;
                     end if;
                 
                 when DRAIN_FIFO_S =>
-                    if (pbit_done = '1' and sclk_rise = '1') then 
+                    if (byte_done = '1' and sclk_rise = '1') then 
                         spi_mosi_en     <= '0';
-                        current_state   <= DRAIN_FIFO_S;
+                        if(fifo_byte_count = "1000") then 
+                            current_state   <= IDLE_S;
+                        end if;
                     end if;
                 
                 when others =>
@@ -348,6 +352,10 @@ begin
                     end if;
                 end if;
             elsif current_state = RD_REG_S then
+                if sclk_rise = '1' then 
+                    miso_sreg <= miso_sreg(6 downto 0) & ACL_MISO; -- msb shifted in first
+                end if;
+            elsif current_state = DRAIN_FIFO_S then
                 if sclk_rise = '1' then 
                     miso_sreg <= miso_sreg(6 downto 0) & ACL_MISO; -- msb shifted in first
                 end if;
@@ -383,7 +391,9 @@ begin
                     when POWER_CTRL_CMD_S   => mosi_sreg <= WR_REG_CMD;
                     when POWER_CTRL_ADDR_S  => mosi_sreg <= power_ctl_addr;
                     when POWER_CTRL_DATA_S  => mosi_sreg <= x"02";
-                    when others         => 
+                    -- Reading IMU DATA from FIFO
+                    when RD_FIFO_CMD_S      => mosi_sreg <= RD_FIFO_CMD;
+                    when others             => 
                 end case;
             elsif spi_clk_d = '1' and spi_clk = '0' then  -- falling edge
                 if spi_mosi_en = '1' and bit_counter /= 1 then
@@ -391,6 +401,33 @@ begin
                 end if;
             end if;
 
+        end if;
+    end process;
+
+    -- Register assignments from FIFO read
+    process (clk, rst_n)
+    begin
+        if rst_n = '0' then
+            data_valid  <= '0';
+            x_reg          <= (others => '0');
+            y_reg          <= (others => '0');
+            z_reg          <= (others => '0');
+            temp_reg       <= (others => '0');
+        elsif rising_edge(clk) then
+            if current_state = DRAIN_FIFO_S and sclk_rise = '1' and byte_done = '1' then 
+                if fifo_byte_count(0) = '0' then
+                    fifo_buffer(7 downto 0) <= miso_next;
+                else
+                    case fifo_byte_count(2 downto 1) is
+                        when "00"   => x_reg <= miso_next & fifo_buffer(7 downto 0);
+                        when "01"   => y_reg <= miso_next & fifo_buffer(7 downto 0);
+                        when "10"   => z_reg <= miso_next & fifo_buffer(7 downto 0);
+                        when others =>
+                            temp_reg    <= miso_next & fifo_buffer(7 downto 0);
+                            data_valid  <= '1';   -- pulse on the last latch
+                    end case;
+              end if;
+            end if;
         end if;
     end process;
 
@@ -402,8 +439,13 @@ begin
                         current_state = RD_REG_S          or
                         current_state = CONFIG_FIFO_CMD_S or current_state = CONFIG_FIFO_ADDR_S or current_state = CONFIG_FIFO_DATA_S or
                         current_state = INTMAP1_CMD_S     or current_state = INTMAP1_ADDR_S     or current_state = INTMAP1_DATA_S     or
-                        current_state = POWER_CTRL_CMD_S  or current_state = POWER_CTRL_ADDR_S  or current_state = POWER_CTRL_DATA_S
+                        current_state = POWER_CTRL_CMD_S  or current_state = POWER_CTRL_ADDR_S  or current_state = POWER_CTRL_DATA_S  or 
+                        current_state = RD_FIFO_CMD_S     or current_state = DRAIN_FIFO_S
                         else '1';
     ACL_SCLK <= spi_clk;
+    x_vel <= x_reg;   
+    y_vel <= y_reg;   
+    z_vel <= z_reg;   
+    temp <= temp_reg;
 
 end architecture;

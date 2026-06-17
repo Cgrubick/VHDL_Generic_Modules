@@ -9,21 +9,21 @@ architecture sim of adxl362_ctrl_tb is
 
     constant CLK_PERIOD : time := 10 ns; -- 100 MHz
 
-    signal clk      : std_logic := '0';
-    signal rst_n    : std_logic := '0';
-    signal command  : std_logic_vector(7 downto 0) := x"00";
-    signal imu_reg  : std_logic_vector(7 downto 0) := (others => '0');
-    signal ACL_INT  : std_logic_vector(1 downto 0) := "00";
-    signal ACL_MOSI : std_logic := '0';
-    signal ACL_MISO : std_logic := '0';
-    signal ACL_SCLK : std_logic;
-    signal ACL_CSN  : std_logic;
-    signal x_vel    : std_logic_vector(15 downto 0);
-    signal y_vel    : std_logic_vector(15 downto 0);
-    signal z_vel    : std_logic_vector(15 downto 0);
-    signal temp     : std_logic_vector(15 downto 0);
-    signal pbit_fail : std_logic;
-    signal pbit_done : std_logic;
+    signal clk          : std_logic := '0';
+    signal rst_n        : std_logic := '0';
+    signal command      : std_logic_vector(7 downto 0) := x"00";
+    signal imu_reg      : std_logic_vector(7 downto 0) := (others => '0');
+    signal ACL_INT      : std_logic_vector(1 downto 0) := "00";
+    signal ACL_MOSI     : std_logic := '0';
+    signal ACL_MISO     : std_logic := '0';
+    signal ACL_SCLK     : std_logic;
+    signal ACL_CSN      : std_logic;
+    signal x_vel        : std_logic_vector(15 downto 0);
+    signal y_vel        : std_logic_vector(15 downto 0);
+    signal z_vel        : std_logic_vector(15 downto 0);
+    signal temp         : std_logic_vector(15 downto 0);
+    signal pbit_fail    : std_logic;
+    signal pbit_done    : std_logic;
     -- ADXL362 register address map (for the slave model)
     constant adxl362_id_addr : std_logic_vector(7 downto 0) := x"02"; -- PARTID register, reads back 0xF2
     constant adxl362_id      : std_logic_vector(7 downto 0) := x"F2";
@@ -86,25 +86,28 @@ architecture sim of adxl362_ctrl_tb is
         end loop;
     end procedure;
 
+    signal data_valid : std_logic;
+
 begin
 
     DUT : entity work.adxl362_ctrl
         port map (
-            clk      => clk,
-            rst_n    => rst_n,
-            command  => command,
-            imu_reg  => imu_reg,
-            ACL_INT  => ACL_INT,
-            ACL_MOSI => ACL_MOSI,
-            ACL_MISO => ACL_MISO,
-            ACL_SCLK => ACL_SCLK,
-            ACL_CSN  => ACL_CSN,
-            x_vel    => x_vel,
-            y_vel    => y_vel,
-            z_vel    => z_vel,
-            temp     => temp,
-            pbit_fail => pbit_fail,
-            pbit_done => pbit_done
+            clk         => clk,
+            rst_n       => rst_n,
+            command     => command,
+            imu_reg     => imu_reg,
+            ACL_INT     => ACL_INT,
+            ACL_MOSI    => ACL_MOSI,
+            ACL_MISO    => ACL_MISO,
+            ACL_SCLK    => ACL_SCLK,
+            ACL_CSN     => ACL_CSN,
+            x_vel       => x_vel,
+            y_vel       => y_vel,
+            z_vel       => z_vel,
+            temp        => temp,
+            data_valid  => data_valid,
+            pbit_fail   => pbit_fail,
+            pbit_done   => pbit_done
         );
 
     -- Clock
