@@ -102,7 +102,7 @@ architecture rtl of adxl362_ctrl is
     signal temp_reg             : std_logic_vector(15 downto 0);
 
     type spi_states is (IDLE_S, BIT_WR_ADDR_S, BIT_WR_INSTR_S, BIT_RD_S, WR_REG_S, RD_REG_S,
-                        CONFIG_FIFO_CMD_S, CONFIG_FIFO_ADDR_S, CONFIG_FIFO_DATA_S,
+                        CONFIG_FIFO_CMD_S, CONFIG_FIFO_ADDR_S, CONFIG_FIFO_DATA_S, CONFIG_FIFO_SAMPLES_S,
                         CFG_GAP1_S,
                         INTMAP1_CMD_S, INTMAP1_ADDR_S, INTMAP1_DATA_S,
                         CFG_GAP2_S,
@@ -138,8 +138,22 @@ architecture rtl of adxl362_ctrl is
     signal cs_n_count           : unsigned(3 downto 0);
     signal cs_n_inc             : std_logic;
 
+    signal imu_int_d    : std_logic;
+    signal imu_int_dd   : std_logic;
+
+    --TODO ADD TIMEOUT STATE AND INDICATE FAILURE in output PORT
+
 
 begin
+
+    -- ACL_INT 2 bit synchronizer, acl_int is async and using it direct was causing metastability in the FSM
+    process (clk, rst_n)
+    begin
+        if rising_edge(clk) then
+            imu_int_d <= ACL_INT(0);
+            imu_int_dd <= imu_int_d;
+        end if;
+    end process;
 
     -- 5MHz clock, runs on falling edge of CS_N
     process (clk, rst_n)
@@ -229,7 +243,7 @@ begin
                     elsif(pbit_done = '1' and pbit_fail = '0' and imu_cfg_done = '0') then
                         current_state   <= CONFIG_FIFO_CMD_S;
                         spi_mosi_en     <= '1';
-                    elsif(ACL_INT(0) = '1' and imu_cfg_done = '1') then
+                    elsif(imu_int_dd = '1' and imu_cfg_done = '1') then
                         current_state <= RD_FIFO_CMD_S;
                         spi_mosi_en     <= '1';
                     end if;
@@ -259,6 +273,11 @@ begin
                         spi_mosi_en     <= '1';
                     end if;
                 when CONFIG_FIFO_DATA_S =>
+                    if(byte_done = '1' and sclk_rise = '1') then
+                        current_state   <= CONFIG_FIFO_SAMPLES_S;  -- burst-write next reg (0x29)
+                        spi_mosi_en     <= '1';
+                    end if;
+                when CONFIG_FIFO_SAMPLES_S =>
                     if(byte_done = '1' and sclk_rise = '1') then
                         current_state   <= CFG_GAP1_S;
                         spi_mosi_en     <= '0';
@@ -382,7 +401,8 @@ begin
                     -- CONFIGURE FIFO 
                     when CONFIG_FIFO_CMD_S  => mosi_sreg <= WR_REG_CMD;
                     when CONFIG_FIFO_ADDR_S => mosi_sreg <= fifo_ctrl_addr;
-                    when CONFIG_FIFO_DATA_S => mosi_sreg <= x"0A";
+                    when CONFIG_FIFO_DATA_S => mosi_sreg <= x"06"; -- stream + store temp, AH=0 (shallow watermark)
+                    when CONFIG_FIFO_SAMPLES_S => mosi_sreg <= x"04"; -- FIFO_SAMPLES (auto-inc 0x29): watermark = 1 set -> low latency
                     -- CONFIGURE FIFO WATERMARK TO INT1 PIN on IMU CHIP
                     when INTMAP1_CMD_S      => mosi_sreg <= WR_REG_CMD;
                     when INTMAP1_ADDR_S     => mosi_sreg <= intmap1_addr;
@@ -435,14 +455,11 @@ begin
 
     miso_next   <= miso_sreg(6 downto 0) & ACL_MISO;
 
-    -----------------------
-    -- Output logic
-    -----------------------
     ACL_MOSI    <= mosi_sreg(7);
 	ACL_CSN     <= '0' when current_state = BIT_WR_INSTR_S    or current_state = BIT_WR_ADDR_S    or
                             current_state = BIT_RD_S          or current_state = WR_REG_S         or
                             current_state = RD_REG_S          or
-                            current_state = CONFIG_FIFO_CMD_S or current_state = CONFIG_FIFO_ADDR_S or current_state = CONFIG_FIFO_DATA_S or
+                            current_state = CONFIG_FIFO_CMD_S or current_state = CONFIG_FIFO_ADDR_S or current_state = CONFIG_FIFO_DATA_S or current_state = CONFIG_FIFO_SAMPLES_S or
                             current_state = INTMAP1_CMD_S     or current_state = INTMAP1_ADDR_S     or current_state = INTMAP1_DATA_S     or
                             current_state = POWER_CTRL_CMD_S  or current_state = POWER_CTRL_ADDR_S  or current_state = POWER_CTRL_DATA_S  or 
                             current_state = RD_FIFO_CMD_S     or current_state = DRAIN_FIFO_S

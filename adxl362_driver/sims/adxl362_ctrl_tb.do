@@ -69,8 +69,6 @@ add wave -divider "Axis / Temp Regs"
 add wave -radix hex      /adxl362_ctrl_tb/DUT/x_reg
 add wave -radix hex      /adxl362_ctrl_tb/DUT/y_reg
 add wave -radix hex      /adxl362_ctrl_tb/DUT/z_reg
-add wave -radix hex      /adxl362_ctrl_tb/DUT/temp_L_reg
-add wave -radix hex      /adxl362_ctrl_tb/DUT/temp_H_reg
 
 #add wave -divider "SPI CLK generation"
 #add wave -radix bin      /adxl362_ctrl_tb/DUT/spi_clk
