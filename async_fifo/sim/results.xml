@@ -1,8 +1,8 @@
 <testsuites name="results">
   <testsuite name="all" package="all">
-    <property name="random_seed" value="1787347543" />
-    <testcase name="async_fifo_tb" classname="async_fifo_tb" file="/Users/cgrubick/Documents/Projects/VHDL_Generic_Modules/async_fifo/sim/async_fifo_tb.py" lineno="5" time="0.0010199546813964844" sim_time_ns="110.0" ratio_time="107847.92893875643">
-      <failure error_type="AssertionError" error_msg="" />
+    <property name="random_seed" value="1787712136" />
+    <testcase name="async_fifo_tb" classname="async_fifo_tb" file="/mnt/e/Projects/FPGAs/VHDL_Modules/async_fifo/sim/async_fifo_tb.py" lineno="21" time="0.004014015197753906" sim_time_ns="200.0" ratio_time="49825.42171537182">
+      <failure error_type="AssertionError" error_msg="empty = 0" />
     </testcase>
   </testsuite>
 </testsuites>
