@@ -35,24 +35,34 @@ architecture rtl of async_fifo is
     type async_fifo_t is array (0 to DEPTH - 1) of std_logic_vector(WIDTH - 1 downto 0);
     signal fifo : async_fifo_t;
 
-    signal wr_ptr_gray          : unsigned(ADDR_W - 1 downto 0);
-    signal rd_ptr_gray          : unsigned(ADDR_W - 1 downto 0);
-    signal wr_ptr_gray_next     : unsigned(ADDR_W - 1 downto 0);
-    signal rd_ptr_gray_next     : unsigned(ADDR_W - 1 downto 0);
-    signal wr_ptr               : unsigned(ADDR_W - 1 downto 0);
-    signal rd_ptr               : unsigned(ADDR_W - 1 downto 0);
-    signal wr_ptr_rd_clk_q      : unsigned(ADDR_W - 1 downto 0);
-    signal rd_ptr_wr_clk_q      : unsigned(ADDR_W - 1 downto 0);
-    signal wr_ptr_rd_clk        : unsigned(ADDR_W - 1 downto 0);
-    signal rd_ptr_wr_clk        : unsigned(ADDR_W - 1 downto 0);
+    signal wr_ptr_gray          : unsigned(ADDR_W downto 0);
+    signal rd_ptr_gray          : unsigned(ADDR_W downto 0);
+    signal wr_ptr_gray_next     : unsigned(ADDR_W downto 0);
+    signal rd_ptr_gray_next     : unsigned(ADDR_W downto 0);
+    signal wr_ptr_gray_to_bin   : unsigned(ADDR_W downto 0);
+    signal rd_ptr_gray_to_bin   : unsigned(ADDR_W downto 0);
+
+    signal wr_ptr               : unsigned(ADDR_W downto 0);
+    signal rd_ptr               : unsigned(ADDR_W downto 0);
+    signal wr_ptr_rd_clk_q      : unsigned(ADDR_W downto 0);
+    signal rd_ptr_wr_clk_q      : unsigned(ADDR_W downto 0);
+    signal wr_ptr_rd_clk        : unsigned(ADDR_W downto 0);
+    signal rd_ptr_wr_clk        : unsigned(ADDR_W downto 0);
     
+
+    function gray2bin (g : unsigned) return unsigned is
+    variable b : unsigned(g'range);
+    begin
+        b(b'high) := g(g'high);
+        for i in g'high - 1 downto g'low loop
+            b(i) := b(i + 1) xor g(i);
+        end loop;
+        return b;
+    end function;
+
 begin
 
-    
-    full    <= '1' when not(rd_ptr_wr_clk) = wr_ptr_gray_next else '0';
-    empty   <= '1' when wr_ptr_rd_clk = rd_ptr_gray_next else '0';
-    af      <= '1' when not(rd_ptr_wr_clk) = wr_ptr_gray_next - AF_LEVEL else '0';
-    ae      <= '1' when wr_ptr_rd_clk = rd_ptr_gray_next + 1 else '0';
+
     -- Write pointer on write clock domain
     wr_ptr_gray_next <= shift_right(wr_ptr + 1, 1) xor wr_ptr + 1;
     process (wr_clk, wr_rst_n)
@@ -125,5 +135,16 @@ begin
 
     -- reading out data from fifo
     rd_data <= fifo(to_integer(rd_ptr)) when rd_en = '1' and empty = '0' else (others => '1');
+    
 
+
+    rd_ptr_gray_to_bin <= gray2bin(rd_ptr_wr_clk);
+    wr_ptr_gray_to_bin <= gray2bin(wr_ptr_rd_clk);
+    full <= '1' when wr_ptr_gray = ((not rd_ptr_wr_clk(ADDR_W downto ADDR_W - 1))
+                                &    rd_ptr_wr_clk(ADDR_W - 2 downto 0))
+        else '0';
+    empty   <= '1' when wr_ptr_rd_clk = rd_ptr_gray else '0';
+    af <= '1' when (wr_ptr - rd_ptr_gray_to_bin) >= to_unsigned(DEPTH - AF_LEVEL, ADDR_W + 1) else '0';
+    ae <= '1' when (wr_ptr_gray_to_bin - rd_ptr) <= to_unsigned(AF_LEVEL, ADDR_W + 1) and (wr_ptr_gray_to_bin - rd_ptr) > 0 else '0';
+    
 end architecture;

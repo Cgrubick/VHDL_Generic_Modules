@@ -1,8 +1,10 @@
 <testsuites name="results">
   <testsuite name="all" package="all">
-    <property name="random_seed" value="1787712136" />
-    <testcase name="async_fifo_tb" classname="async_fifo_tb" file="/mnt/e/Projects/FPGAs/VHDL_Modules/async_fifo/sim/async_fifo_tb.py" lineno="21" time="0.004014015197753906" sim_time_ns="200.0" ratio_time="49825.42171537182">
-      <failure error_type="AssertionError" error_msg="empty = 0" />
-    </testcase>
+    <property name="random_seed" value="1788227430" />
+    <testcase name="init_test" classname="async_fifo_tb" file="/mnt/e/Projects/FPGAs/VHDL_Modules/async_fifo/sim/async_fifo_tb.py" lineno="53" time="0.000579833984375" sim_time_ns="70.0" ratio_time="120724.21052631579" />
+    <testcase name="full_test" classname="async_fifo_tb" file="/mnt/e/Projects/FPGAs/VHDL_Modules/async_fifo/sim/async_fifo_tb.py" lineno="58" time="0.0011703968048095703" sim_time_ns="390.0" ratio_time="333220.3218578122" />
+    <testcase name="empty_test" classname="async_fifo_tb" file="/mnt/e/Projects/FPGAs/VHDL_Modules/async_fifo/sim/async_fifo_tb.py" lineno="68" time="0.00131988525390625" sim_time_ns="545.0" ratio_time="412914.68208092486" />
+    <testcase name="almost_full_test" classname="async_fifo_tb" file="/mnt/e/Projects/FPGAs/VHDL_Modules/async_fifo/sim/async_fifo_tb.py" lineno="80" time="0.0010225772857666016" sim_time_ns="389.9999999999999" ratio_time="381389.2655630682" />
+    <testcase name="almost_empty_test" classname="async_fifo_tb" file="/mnt/e/Projects/FPGAs/VHDL_Modules/async_fifo/sim/async_fifo_tb.py" lineno="92" time="0.0014464855194091797" sim_time_ns="540.0" ratio_time="373318.635239822" />
   </testsuite>
 </testsuites>
